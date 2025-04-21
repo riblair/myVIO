@@ -1,0 +1,4 @@
+viovenv/
+pangolin/
+data/*
+__pycache__
