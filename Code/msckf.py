@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.stats import chi2
+from scipy.spatial.transform import Rotation
 
 from utils import *
 from feature import Feature
@@ -237,17 +238,39 @@ class MSCKF(object):
         first few IMU readings.
         """
         # Initialize the gyro_bias given the current angular and linear velocity
-        ...
+
+        ang_sum = np.zeros((3))
+        lin_sum = np.zeros((3))
+        for i in range(len(self.imu_msg_buffer)):
+            ang_sum += self.imu_msg_buffer[i].angular_velocity
+            lin_sum += self.imu_msg_buffer[i].linear_acceleration
+
+        lin_avg = lin_sum / len(self.imu_msg_buffer)
+        acc_avg = ang_sum / len(self.imu_msg_buffer)
+        self.gyro_bias = lin_avg
+        self.acc_bias = acc_avg
 
         # Find the gravity in the IMU frame.
-        ...
         
-        # Normalize the gravity and save to IMUState          
-        ...
+        # Normalize the gravity and save to IMUState   
+        gravity_norm = np.linalg.norm(lin_avg)
+        IMUState.gravity = np.array([0, 0, -gravity_norm])
 
         # Initialize the initial orientation, so that the estimation
         # is consistent with the inertial frame.
-        ...
+        " USE SCIPY TO TRY AND GET THE ORIENTATION based on the gravity vector."
+        g_unit = IMUState.gravity / gravity_norm
+        lin_unit = lin_avg / np.linalg.norm(lin_avg)
+
+        cross_product = np.cross(g_unit, lin_unit)
+        dot_product = np.dot(g_unit, lin_unit)
+        w = dot_product + 1
+        x, y, z = cross_product
+        
+        q = np.array([x, y, z, w])
+        q = q / np.linalg.norm(q)
+
+        IMUState.orientation = q
 
     # Filter related functions
     # (batch_imu_processing, process_model, predict_new_state)
@@ -262,16 +285,22 @@ class MSCKF(object):
         # Execute process model.
         # Update the state info
         # Repeat until the time_bound is reached
-        ...
+        for msg in self.imu_msg_buffer:
+            if msg.timestamp < IMUState.timestamp:
+                continue
+            elif msg.timestamp > time_bound:
+                break
+            
+            self.process_model(msg.timestamp, msg.angular_velocity, msg.linear_acceleration)
         
         # Set the current imu id to be the IMUState.next_id
-        ...
+        self.state_server.imu_state.id = IMUState.next_id
         
         # IMUState.next_id increments
-        ...
+        IMUState.next_id+=1
 
         # Remove all used IMU msgs.
-        ...
+        # self.imu_msg_buffer.
 
     def process_model(self, time, m_gyro, m_acc):
         """
