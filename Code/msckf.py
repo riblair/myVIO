@@ -282,16 +282,18 @@ class MSCKF(object):
         Process the imu message given the time bound
         """
         # Process the imu messages in the imu_msg_buffer 
-        # Execute process model.
-        # Update the state info
-        # Repeat until the time_bound is reached
         for msg in self.imu_msg_buffer:
+            # Repeat until the time_bound is reached
             if msg.timestamp < IMUState.timestamp:
                 continue
             elif msg.timestamp > time_bound:
                 break
             
+            # Execute process model.
             self.process_model(msg.timestamp, msg.angular_velocity, msg.linear_acceleration)
+            
+            # Update the state info
+            
         
         # Set the current imu id to be the IMUState.next_id
         self.state_server.imu_state.id = IMUState.next_id
@@ -310,29 +312,72 @@ class MSCKF(object):
         Section III.A: The dynamics of the error IMU state following equation (2) in the "MSCKF" paper.
         """
         # Get the error IMU state
-        ...
+        imu_state = self.state_server.imu_state
+        gyro = m_gyro - imu_state.gyro_bias
+        acc = m_acc - imu_state.acc_bias
+        dtime = time - imu_state.time
 
         # Compute discrete transition F, Q matrices in Appendix A in "MSCKF" paper
-        ...
+        F = np.zeros((21, 21))
+        G = np.zeros((21, 12))
+        
+        F[0:3, 0:3] = -skew(gyro)
+        F[3:6, 3:6] = np.eye(3)
+        F[0:3, 6:9] = -np.transpose(to_rotation(imu_state.orientation)) @ skew(acc)
+        F[6:9, 9:12] = -np.transpose(to_rotation(imu_state.orientation))
+        F[12:15, 12:15] = np.eye(3)
+        
+        G[0:3, 0:3] = -np.eye(3)
+        G[3:6, 3:6] = np.eye(3)
+        G[6:9, 6:9] = -np.transpose(to_rotation(imu_state.orientation))
+        G[9:12, 9:12] = np.eye(3)
         
         # Approximate matrix exponential to the 3rd order, which can be 
         # considered to be accurate enough assuming dt is within 0.01s.
-        ...
+        Fdt = F @ dtime
+        Fdt_square = Fdt @ Fdt
+        Fdt_cube = Fdt_square @ Fdt
+        Phi = np.eye(21) + 0.5*Fdt_square + (1.0/6.0)*Fdt_cube
 
         # Propogate the state using 4th order Runge-Kutta
-        self.predict_new_state(dt, gyro, acc)
+        self.predict_new_state(dtime, gyro, acc)
 
         # Modify the transition matrix
-        ...
-
+        R_kk_1 = to_rotation(imu_state.orientation_null)
+        Phi[0:3, 0:3] = to_rotation(imu_state.orientation) @ np.transpose(R_kk_1)
+        
+        u = R_kk_1 @ imu_state.gravity
+        s = np.linalg.inv*(np.transpose(u)@u) @ np.transpose(u)
+        A1 = Phi[6:9, 0:3]
+        w1 = skew(imu_state.velocity_null - imu_state.velocity) @ imu_state.gravity
+        Phi[6:9, 0:3] = A1 - (A1@u-w1)
+        
+        A2 = Phi[12:15, 0:3]
+        w2 = skew(dtime*imu_state.velocity_null+imu_state.position_null-imu_state.position) * imu_state.gravity
+        Phi[12:15, 0:3] = A2 - (A2*u-w2)*s
+        
         # Propogate the state covariance matrix.
-        ...
+        Q = Phi @ G @ self.state_server.continuous_noise_cov @ np.transpose(G) @ np.transpose(Phi) * dtime
+        self.state_server.state_cov[0:21, 0:21] = Phi*self.state_server.state_cov[0:21, 0:21]*Phi.transpose() + Q
+        if len(self.state_server.cam_states) > 0:
+            self.state_server.state_cov[0:21, 21:self.state_server.state_cov.shape[1]] = (
+                Phi @ self.state_server.state_cov[0:21, 21:self.state_server.state_cov.shape[1]])
+            self.state_server.state_cov[21:self.state_server.state_cov.shape[0], 0:21] = (
+                self.state_server.state_cov[21:self.state_server.state_cov.shape[0], 0:21] @ Phi.T)
 
+        
+        
         # Fix the covariance to be symmetric
-        ...
+        state_cov_fixed = (self.state_server.state_cov+self.state_server.state_cov.T) / 2.0
+        self.state_server.state_cov = state_cov_fixed
         
         # Update the state correspondes to null space.
-        ...
+        imu_state.orientation_null = imu_state.orientation
+        imu_state.position_null = imu_state.position
+        imu_state.velocity_null = imu_state.velocity
+        
+        self.state_server.imu_state.time = time
+        return
         
 
     def predict_new_state(self, dt, gyro, acc):
