@@ -283,16 +283,19 @@ class MSCKF(object):
         """
         Process the imu message given the time bound
         """
+        used_imu_msg_cntr = 0
         # Process the imu messages in the imu_msg_buffer 
         for msg in self.imu_msg_buffer:
             # Repeat until the time_bound is reached
             if msg.timestamp < self.state_server.imu_state.timestamp:
+                used_imu_msg_cntr += 1
                 continue
             elif msg.timestamp > time_bound:
                 break
             
             # Execute process model.
             self.process_model(msg.timestamp, msg.angular_velocity, msg.linear_acceleration)
+            used_imu_msg_cntr += 1
             
             # Update the state info
             
@@ -304,7 +307,7 @@ class MSCKF(object):
         IMUState.next_id+=1
 
         # Remove all used IMU msgs.
-        # self.imu_msg_buffer.
+        self.imu_msg_buffer = self.imu_msg_buffer[used_imu_msg_cntr:]
 
     def process_model(self, time, m_gyro, m_acc):
         """
