@@ -16,7 +16,7 @@ class IMUState(object):
     next_id = 0
 
     # Gravity vector in the world frame
-    gravity = np.array([0., 0., -9.81]) # .reshape((1,3))
+    gravity = np.array([0., 0., -9.81]).reshape((3,1))
 
     # Transformation offset from the IMU frame to the body frame. 
     # The transformation takes a vector from the IMU frame to the 
@@ -351,8 +351,8 @@ class MSCKF(object):
         R_kk_1 = to_rotation(imu_state.orientation_null)
         Phi[0:3, 0:3] = to_rotation(imu_state.orientation) @ np.transpose(R_kk_1)
         
-        u = R_kk_1 @ imu_state.gravity
-        s = np.linalg.inv*(np.transpose(u)@u) @ np.transpose(u)
+        u = R_kk_1 @ imu_state.gravity 
+        s = np.linalg.inv*(np.transpose(u) @ u) @ np.transpose(u) # this causes crashes due to matmul / singular matrix errors
         A1 = Phi[6:9, 0:3]
         w1 = skew(imu_state.velocity_null - imu_state.velocity) @ imu_state.gravity
         Phi[6:9, 0:3] = A1 - (A1@u-w1)
@@ -370,7 +370,6 @@ class MSCKF(object):
             self.state_server.state_cov[21:self.state_server.state_cov.shape[0], 0:21] = (
                 self.state_server.state_cov[21:self.state_server.state_cov.shape[0], 0:21] @ Phi.T)
 
-        
         
         # Fix the covariance to be symmetric
         state_cov_fixed = (self.state_server.state_cov+self.state_server.state_cov.T) / 2.0
@@ -452,25 +451,56 @@ class MSCKF(object):
         Compute the state covariance matrix in equation (3) in the "MSCKF" paper.
         """
         # Get the imu_state, rotation from imu to cam0, and translation from cam0 to imu
-        ...
+        r_i_c = self.state_server.imu_state.R_imu_cam0
+        t_c_i = self.state_server.imu_state.t_cam0_imu
 
         # Add a new camera state to the state server.
-        ...
-        
+        r_w_i = to_rotation(self.state_server.imu_state.orientation)
+        r_w_c = r_i_c @ r_w_i
+        t_c_w = self.state_server.imu_state.position + r_w_i.T @ t_c_i
+
+        new_cam_state = CAMState(self.state_server.imu_state.id)
+
+        new_cam_state.timestamp = time
+        new_cam_state.orientation = to_quaternion(r_w_c)
+        new_cam_state.position = t_c_w
+
+        new_cam_state.orientation_null = new_cam_state.orientation
+        new_cam_state.position_null = new_cam_state.position
+
+        self.state_server.cam_states[self.state_server.imu_state.id] = new_cam_state
+
 
         # Update the covariance matrix of the state.
         # To simplify computation, the matrix J below is the nontrivial block
         # Appendix B of "MSCKF" paper.
-        ...
+        J_mat = np.zeros((6,21))
+        J_mat[0:3, 0:3] = r_i_c
+        J_mat[0:3, 15:18] = np.identity(3)
+
+        J_mat[3:6, 0:3] = skew(r_w_i.T @ t_c_i)
+        J_mat[3:6, 12:15] = np.identity(3)
+        J_mat[3:6, 18:21] = np.identity(3)
 
         # Resize the state covariance matrix.
-        ...
+        old_rows = self.state_server.state_cov.shape[0]
+        old_cols = self.state_server.state_cov.shape[1]
+
+        new_state_cov = np.zeros((old_rows+6, old_cols+6))
+        new_state_cov[0:old_rows, 0:old_cols] = self.state_server.state_cov
+
+        p_11 = new_state_cov[0:21, 0:21]
+        p_12 = new_state_cov[0:21, 21:old_cols]
 
         # Fill in the augmented state covariance.
-        ...
+        bottom_row = np.hstack((J_mat @ p_11, J_mat @ p_12))
+
+        new_state_cov[old_rows:, :old_cols] = bottom_row
+        new_state_cov[:old_rows, old_cols:] = bottom_row.T
+        new_state_cov[old_rows:, old_cols:] = J_mat @ p_11 @ J_mat.T
 
         # Fix the covariance to be symmetric
-        ...
+        self.state_server.state_cov = (new_state_cov + new_state_cov.T) / 2
 
     def add_feature_observations(self, feature_msg):
         """
