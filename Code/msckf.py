@@ -7,6 +7,7 @@ from feature import Feature
 
 import time
 from collections import namedtuple
+import math
 
 
 
@@ -259,18 +260,19 @@ class MSCKF(object):
         # Initialize the initial orientation, so that the estimation
         # is consistent with the inertial frame.
         " USE SCIPY TO TRY AND GET THE ORIENTATION based on the gravity vector."
-        g_unit = IMUState.gravity / gravity_norm
-        lin_unit = lin_avg / np.linalg.norm(lin_avg)
+        # g_unit = IMUState.gravity / gravity_norm
+        # lin_unit = lin_avg / np.linalg.norm(lin_avg)
 
-        cross_product = np.cross(g_unit, lin_unit)
-        dot_product = np.dot(g_unit, lin_unit)
-        w = dot_product + 1
-        x, y, z = cross_product
+        # cross_product = np.cross(g_unit, lin_unit)
+        # dot_product = np.dot(g_unit, lin_unit)
+        # w = dot_product + 1
+        # x, y, z = cross_product
         
-        q = np.array([x, y, z, w])
-        q = q / np.linalg.norm(q)
+        # q = np.array([x, y, z, w])
+        # q = q / np.linalg.norm(q)
 
-        IMUState.orientation = q
+        ## TODO: the paper does some odd tricks, unsure if this is the correct impl.
+        IMUState.orientation = to_quaternion(to_rotation(from_two_vectors(IMUState.gravity, lin_avg)).T)
 
     # Filter related functions
     # (batch_imu_processing, process_model, predict_new_state)
@@ -341,35 +343,58 @@ class MSCKF(object):
         """
         """Propogate the state using 4th order Runge-Kutta for equstion (1) in "MSCKF" paper"""
         # compute norm of gyro
-        ...
+        
+        gyro_norm = np.linalg.norm(gyro)
         
         # Get the Omega matrix, the equation above equation (2) in "MSCKF" paper
-        ...
+        
+        omega_mat = np.zeros((4,4))
+        omega_mat[0:3, 0:3] = -skew(gyro)
+        omega_mat[3, :] = -gyro
+        omega_mat[:, 3] = gyro.reshape((3,1))
+
         
         # Get the orientation, velocity, position
-        ...
+        curr_q = IMUState.orientation
+        curr_v = IMUState.velocity
+        curr_p = IMUState.position
         
         # Compute the dq_dt, dq_dt2 in equation (1) in "MSCKF" paper
-        ...
+        dq_dt = (math.cos(gyro_norm*dt*0.5)*np.identity(4) + 1/gyro_norm*math.sin(gyro_norm*dt*0.5)*omega_mat) * curr_q
+        dq_dt2 = (math.cos(gyro_norm*dt*0.25)*np.identity(4) + 1/gyro_norm*math.sin(gyro_norm*dt*0.25)*omega_mat) * curr_q
+
+        dR_dt_transpose = to_rotation(dq_dt).T
+        dR_dt2_transpose = to_rotation(dq_dt2).T
         
         # Apply 4th order Runge-Kutta 
         # k1 = f(tn, yn)
-        ...
+        k1_v_dot = to_rotation(curr_q).T * acc + IMUState.gravity
+        k1_p_dot = curr_v
 
         # k2 = f(tn+dt/2, yn+k1*dt/2)
-        ...
+        k1_v = curr_v + k1_v_dot * dt / 2
+        k2_v_dot =  dR_dt2_transpose* acc + IMUState.gravity
+        k2_p_dot = k1_v
         
         # k3 = f(tn+dt/2, yn+k2*dt/2)
-        ...
-        
+        k2_v = curr_v + k2_v_dot * dt / 2
+        k3_v_dot = dR_dt2_transpose * acc + IMUState.gravity
+        k3_p_dot = k2_v
+
         # k4 = f(tn+dt, yn+k3*dt)
-        ...
+        k3_v = curr_v + k3_v_dot * dt
+        k4_v_dot = dR_dt_transpose * acc + IMUState.gravity
+        k4_p_dot = k3_v
 
         # yn+1 = yn + dt/6*(k1+2*k2+2*k3+k4)
-        ...
+        new_q = dq_dt
+        new_v = curr_v + dt/6*(k1_v_dot + 2*k2_v_dot + 2*k3_v_dot + k4_v_dot)
+        new_p = curr_p + dt/6*(k1_p_dot + 2*k2_p_dot + 2*k3_p_dot + k4_p_dot)
 
         # update the imu state
-        ...
+        IMUState.orientation = quaternion_normalize(new_q)
+        IMUState.velocity = new_v
+        IMUState.position = new_p
 
     
     def state_augmentation(self, time):
