@@ -2,3 +2,4 @@ viovenv/
 pangolin/
 data/*
 __pycache__
+venv/
