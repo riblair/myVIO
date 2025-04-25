@@ -16,7 +16,7 @@ class IMUState(object):
     next_id = 0
 
     # Gravity vector in the world frame
-    gravity = np.array([0., 0., -9.81])
+    gravity = np.array([0., 0., -9.81]) # .reshape((1,3))
 
     # Transformation offset from the IMU frame to the body frame. 
     # The transformation takes a vector from the IMU frame to the 
@@ -255,7 +255,7 @@ class MSCKF(object):
         
         # Normalize the gravity and save to IMUState   
         gravity_norm = np.linalg.norm(lin_avg)
-        IMUState.gravity = np.array([0, 0, -gravity_norm])
+        IMUState.gravity = np.array([0., 0., -gravity_norm]) # .reshape((1,3))
 
         # Initialize the initial orientation, so that the estimation
         # is consistent with the inertial frame.
@@ -272,7 +272,7 @@ class MSCKF(object):
         # q = q / np.linalg.norm(q)
 
         ## TODO: the paper does some odd tricks, unsure if this is the correct impl.
-        IMUState.orientation = to_quaternion(to_rotation(from_two_vectors(IMUState.gravity, lin_avg)).T)
+        IMUState.orientation = to_quaternion(to_rotation(from_two_vectors(IMUState.gravity.flatten(), lin_avg)).T)
 
     # Filter related functions
     # (batch_imu_processing, process_model, predict_new_state)
@@ -286,7 +286,7 @@ class MSCKF(object):
         # Process the imu messages in the imu_msg_buffer 
         for msg in self.imu_msg_buffer:
             # Repeat until the time_bound is reached
-            if msg.timestamp < IMUState.timestamp:
+            if msg.timestamp < self.state_server.imu_state.timestamp:
                 continue
             elif msg.timestamp > time_bound:
                 break
@@ -317,7 +317,7 @@ class MSCKF(object):
         imu_state = self.state_server.imu_state
         gyro = m_gyro - imu_state.gyro_bias
         acc = m_acc - imu_state.acc_bias
-        dtime = time - imu_state.time
+        dtime = time - imu_state.timestamp
 
         # Compute discrete transition F, Q matrices in Appendix A in "MSCKF" paper
         F = np.zeros((21, 21))
@@ -336,7 +336,7 @@ class MSCKF(object):
         
         # Approximate matrix exponential to the 3rd order, which can be 
         # considered to be accurate enough assuming dt is within 0.01s.
-        Fdt = F @ dtime
+        Fdt = F * dtime
         Fdt_square = Fdt @ Fdt
         Fdt_cube = Fdt_square @ Fdt
         Phi = np.eye(21) + 0.5*Fdt_square + (1.0/6.0)*Fdt_cube
@@ -395,18 +395,17 @@ class MSCKF(object):
         
         omega_mat = np.zeros((4,4))
         omega_mat[0:3, 0:3] = -skew(gyro)
-        omega_mat[3, :] = -gyro
-        omega_mat[:, 3] = gyro.reshape((3,1))
-
+        omega_mat[3, 0:3] = -gyro
+        omega_mat[0:3, 3] = gyro
         
         # Get the orientation, velocity, position
-        curr_q = IMUState.orientation
-        curr_v = IMUState.velocity
-        curr_p = IMUState.position
+        curr_q = self.state_server.imu_state.orientation
+        curr_v = self.state_server.imu_state.velocity
+        curr_p = self.state_server.imu_state.position
         
         # Compute the dq_dt, dq_dt2 in equation (1) in "MSCKF" paper
-        dq_dt = (math.cos(gyro_norm*dt*0.5)*np.identity(4) + 1/gyro_norm*math.sin(gyro_norm*dt*0.5)*omega_mat) * curr_q
-        dq_dt2 = (math.cos(gyro_norm*dt*0.25)*np.identity(4) + 1/gyro_norm*math.sin(gyro_norm*dt*0.25)*omega_mat) * curr_q
+        dq_dt = (math.cos(gyro_norm*dt*0.5)*np.identity(4) + 1/gyro_norm*math.sin(gyro_norm*dt*0.5)*omega_mat) @ curr_q
+        dq_dt2 = (math.cos(gyro_norm*dt*0.25)*np.identity(4) + 1/gyro_norm*math.sin(gyro_norm*dt*0.25)*omega_mat) @ curr_q
 
         dR_dt_transpose = to_rotation(dq_dt).T
         dR_dt2_transpose = to_rotation(dq_dt2).T
@@ -437,9 +436,9 @@ class MSCKF(object):
         new_p = curr_p + dt/6*(k1_p_dot + 2*k2_p_dot + 2*k3_p_dot + k4_p_dot)
 
         # update the imu state
-        IMUState.orientation = quaternion_normalize(new_q)
-        IMUState.velocity = new_v
-        IMUState.position = new_p
+        self.state_server.imu_state.orientation = quaternion_normalize(new_q)
+        self.state_server.imu_state.velocity = new_v
+        self.state_server.imu_state.position = new_p
 
     
     def state_augmentation(self, time):
