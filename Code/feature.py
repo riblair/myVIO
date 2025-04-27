@@ -84,7 +84,7 @@ class Feature(object):
         J[1] = W[1]/h3 - W[2]*h2/(h3*h3)
 
         # Compute the residual.
-        z_hat = np.array([h1/h3, h2/h3])
+        z_hat = np.array([[h1/h3], [h2/h3]])  # NOTE: Edited to make 2x1
         r = z_hat - z
 
         # Compute the weight based on the residual.
@@ -111,14 +111,16 @@ class Feature(object):
             p: Computed feature position in c1 frame. (vec3)
         """
         # Construct a least square problem to solve the depth.
-        m = T_c1_c2.R @ np.array([*z1, 1.0])
-        a = m[:2] - z2*m[2]                   # vec2
-        b = z2*T_c1_c2.t[2] - T_c1_c2.t[:2]   # vec2
+        # NOTE: We did not write this function, but we did edit it to make matrix math work.
+        tmp = np.array([[z1[0,0]], [z1[1,0]], [1.0]])
+        m = T_c1_c2.R @ tmp
+        a = (m[:2] - z2*m[2]).flatten()                   # vec2
+        b = (z2*T_c1_c2.t[2] - np.reshape(T_c1_c2.t[:2], (2,1))).flatten()   # vec2
 
         # Solve for the depth.
         depth = a @ b / (a @ a)
         
-        p = np.array([*z1, 1.0]) * depth
+        p = tmp * depth
         return p
 
     def check_motion(self, cam_states):
@@ -214,7 +216,7 @@ class Feature(object):
 
         # Generate initial guess
         initial_position = self.generate_initial_guess(
-            cam_poses[-2], measurements[0], measurements[-2])
+            cam_poses[-2], measurements[0], measurements[-2]).flatten()
         solution = np.array([*initial_position[:2], 1.0]) / initial_position[2]
 
         # Apply Levenberg-Marquart method to solve for the 3d position.
@@ -242,10 +244,10 @@ class Feature(object):
                 J, r, w = self.jacobian(cam_pose, solution, measurement)
                 if w == 1.0:
                     A += J.T @ J
-                    b += J.T @ r
+                    b += (J.T @ r).flatten()
                 else:
                     A += w * w * J.T @ J
-                    b += w * w * J.T @ r
+                    b += (w * w * J.T @ r).flatten()
 
             # Inner loop.
             # Solve for the delta that can reduce the total cost.

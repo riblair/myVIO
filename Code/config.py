@@ -74,7 +74,6 @@ class ConfigEuRoC(object):
         self.gyro_bias_noise = 0.001 ** 2
         self.acc_bias_noise = 0.01 ** 2
         self.observation_noise = 0.035 ** 2
-
         # initial state
         self.velocity = np.zeros(3)
 

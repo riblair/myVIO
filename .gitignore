@@ -3,3 +3,4 @@ pangolin/
 data/*
 __pycache__
 venv/
+video.mp4
