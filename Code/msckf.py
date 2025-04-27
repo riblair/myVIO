@@ -51,8 +51,8 @@ class IMUState(object):
         # the transition matrices to make the observability matrix
         # have proper null space.
         self.orientation_null = np.array([0., 0., 0., 1.])
-        self.position_null = np.zeros(3)
-        self.velocity_null = np.zeros(3)
+        self.position_null = np.zeros((3,1))
+        self.velocity_null = np.zeros((3,1))
 
         # Transformation between the IMU and the left camera (cam0)
         self.R_imu_cam0 = np.identity(3)
@@ -322,7 +322,7 @@ class MSCKF(object):
         imu_state = self.state_server.imu_state
         gyro = m_gyro - imu_state.gyro_bias
         acc = m_acc - imu_state.acc_bias
-        dtime = time - imu_state.timestamp
+        dtime = time - imu_state.timestamp # is zero
 
         # Compute discrete transition F, Q matrices in Appendix A in "MSCKF" paper
         F = np.zeros((21, 21))
@@ -357,11 +357,11 @@ class MSCKF(object):
         u = np.reshape(u, (3,1)) 
         s = np.linalg.inv(np.transpose(u) @ u) @ np.transpose(u) # this causes crashes due to matmul / singular matrix errors
         A1 = Phi[6:9, 0:3]
-        w1 = skew(imu_state.velocity_null - imu_state.velocity) @ imu_state.gravity
+        w1 = skew((imu_state.velocity_null - imu_state.velocity).flatten()) @ imu_state.gravity
         Phi[6:9, 0:3] = A1 - (A1@u-w1)
         
         A2 = Phi[12:15, 0:3]
-        w2 = skew(dtime*imu_state.velocity_null+imu_state.position_null-imu_state.position) * imu_state.gravity
+        w2 = skew((dtime*imu_state.velocity_null+imu_state.position_null-imu_state.position).flatten()) @ imu_state.gravity
         Phi[12:15, 0:3] = A2 - (A2*u-w2)*s
         
         # Propogate the state covariance matrix.
@@ -406,7 +406,7 @@ class MSCKF(object):
         # Get the orientation, velocity, position
         curr_q = self.state_server.imu_state.orientation
         curr_v = np.reshape(self.state_server.imu_state.velocity, (3,1))
-        curr_p = self.state_server.imu_state.position
+        curr_p = np.reshape(self.state_server.imu_state.position, (3,1))
         acc = np.reshape(acc, (3,1))
         
         # Compute the dq_dt, dq_dt2 in equation (1) in "MSCKF" paper

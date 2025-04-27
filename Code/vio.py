@@ -6,8 +6,6 @@ from config import ConfigEuRoC
 from image import ImageProcessor
 from msckf import MSCKF
 
-
-
 class VIO(object):
     def __init__(self, config, img_queue, imu_queue, viewer=None):
         self.config = config
@@ -71,7 +69,7 @@ if __name__ == '__main__':
     import argparse
 
     from dataset import EuRoCDataset, DataPublisher
-    # from viewer import Viewer
+    from viewer import Viewer
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--path', type=str, default='data', 
@@ -80,7 +78,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.view:
-        # viewer = Viewer()
+        viewer = Viewer()
         pass
     else:
         viewer = None
