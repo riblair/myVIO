@@ -242,39 +242,28 @@ class MSCKF(object):
         """
         # Initialize the gyro_bias given the current angular and linear velocity
 
-        ang_sum = np.zeros((3))
-        lin_sum = np.zeros((3))
-        for i in range(len(self.imu_msg_buffer)):
-            ang_sum += self.imu_msg_buffer[i].angular_velocity
-            lin_sum += self.imu_msg_buffer[i].linear_acceleration
+        gyro_sum = np.zeros(3)
+        acc_sum = np.zeros(3)
+        for imu_msg in self.imu_msg_buffer:
+            gyro_sum += imu_msg.angular_velocity
+            acc_sum += imu_msg.linear_acceleration
 
-        lin_avg = lin_sum / len(self.imu_msg_buffer)
-        acc_avg = ang_sum / len(self.imu_msg_buffer)
-        self.state_server.imu_state.gyro_bias = acc_avg
+        gyro_bias = gyro_sum / len(self.imu_msg_buffer)
+        acc_avg = acc_sum / len(self.imu_msg_buffer)
+
+        self.state_server.imu_state.gyro_bias = gyro_bias
         # self.acc_bias = lin_avg
 
         # Find the gravity in the IMU frame.
         
         # Normalize the gravity and save to IMUState   
-        gravity_norm = np.linalg.norm(lin_avg)
+        gravity_norm = np.linalg.norm(acc_avg)
         IMUState.gravity = np.array([0., 0., -gravity_norm]).reshape((3,1))
 
         # Initialize the initial orientation, so that the estimation
         # is consistent with the inertial frame.
-        " USE SCIPY TO TRY AND GET THE ORIENTATION based on the gravity vector."
-        # g_unit = (IMUState.gravity / gravity_norm).flatten()
-        # lin_unit = (lin_avg / np.linalg.norm(lin_avg)).flatten()
 
-        # cross_product = np.cross(g_unit, lin_unit)
-        # dot_product = np.dot(g_unit, lin_unit)
-        # w = dot_product + 1
-        # x, y, z = cross_product
-        
-        # q = np.array([x, y, z, w])
-        # q = q / np.linalg.norm(q)
-
-        ## TODO: the paper does some odd tricks, unsure if this is the correct impl.
-        q0_i_w = from_two_vectors(lin_avg, -IMUState.gravity.flatten())
+        q0_i_w = from_two_vectors(acc_avg, -IMUState.gravity.flatten())
         R0_i_w = to_rotation(q0_i_w)
         self.state_server.imu_state.orientation = to_quaternion(R0_i_w.T)
         # self.state_server.imu_state.orientation = np.array([0,0,0,1])
@@ -304,10 +293,6 @@ class MSCKF(object):
             self.process_model(msg.timestamp, msg.angular_velocity, msg.linear_acceleration)
             used_imu_msg_cntr += 1
             
-            # Update the state info
-            # What is this ^^ ???
-            
-        
         # Set the current imu id to be the IMUState.next_id
         self.state_server.imu_state.id = IMUState.next_id
         
@@ -327,7 +312,8 @@ class MSCKF(object):
         # Get the error IMU state
         imu_state = self.state_server.imu_state
         gyro = m_gyro - imu_state.gyro_bias
-        acc = m_acc - imu_state.acc_bias     
+        acc = m_acc - imu_state.acc_bias
+        # test = acc @ to_rotation(self.state_server.imu_state.orientation)
         dtime = time - imu_state.timestamp
         # dtime = 0.005
 
@@ -336,10 +322,10 @@ class MSCKF(object):
         G = np.zeros((21, 12))
         
         F[0:3, 0:3] = -skew(gyro)
-        F[3:6, 3:6] = -np.eye(3)
-        F[0:3, 6:9] = -np.transpose(to_rotation(imu_state.orientation)) @ skew(acc)
+        F[0:3, 3:6] = -np.eye(3) # from 3:6 3:6
+        F[6:9, 0:3] = -np.transpose(to_rotation(imu_state.orientation)) @ skew(acc)
         F[6:9, 9:12] = -np.transpose(to_rotation(imu_state.orientation))
-        F[12:15, 12:15] = np.eye(3)
+        F[12:15, 6:9] = np.eye(3)
         
         G[0:3, 0:3] = -np.eye(3)
         G[3:6, 3:6] = np.eye(3)
@@ -372,8 +358,9 @@ class MSCKF(object):
         Phi[12:15, 0:3] = A2 - (A2@u-w2)@s
         
         # Propogate the state covariance matrix.
-        Q = Phi @ G @ self.state_server.continuous_noise_cov @ np.transpose(G) @ np.transpose(Phi) * dtime
-        self.state_server.state_cov[0:21, 0:21] = Phi*self.state_server.state_cov[0:21, 0:21]*Phi.transpose() + Q
+        Q = Phi @ (G @ self.state_server.continuous_noise_cov @ G.T) @ Phi.T * dtime
+        self.state_server.state_cov[0:21, 0:21] = Phi @ self.state_server.state_cov[0:21, 0:21] @ Phi.T + Q
+
         if len(self.state_server.cam_states) > 0:
             self.state_server.state_cov[0:21, 21:self.state_server.state_cov.shape[1]] = (
                 Phi @ self.state_server.state_cov[0:21, 21:self.state_server.state_cov.shape[1]])
@@ -493,7 +480,7 @@ class MSCKF(object):
 
         J_mat[3:6, 0:3] = skew((r_w_i.T @ t_c_i).flatten())
         J_mat[3:6, 12:15] = np.identity(3)
-        J_mat[3:6, 18:21] = np.identity(3)
+        J_mat[3:6, 18:21] = r_w_i.T
 
         # Resize the state covariance matrix.
         old_rows = self.state_server.state_cov.shape[0]
@@ -503,7 +490,7 @@ class MSCKF(object):
         new_state_cov[0:old_rows, 0:old_cols] = self.state_server.state_cov
 
         p_11 = new_state_cov[0:21, 0:21]
-        p_12 = new_state_cov[0:21, 21:old_cols]
+        p_12 = new_state_cov[0:21, 21:old_cols] # could be wrong...
 
         # Fill in the augmented state covariance.
         bottom_row = np.hstack((J_mat @ p_11, J_mat @ p_12))
@@ -525,7 +512,7 @@ class MSCKF(object):
         tracked_feature_num = 0
         
         # add all features in the feature_msg to self.map_server
-        for feature in feature_msg.features:  # TODO: Unsure of object type of feature msg, so this might error. Verify.
+        for feature in feature_msg.features:
             # if self.map_server.get(feature.id) == len(self.map_server) - 1:  # equivalent to C++ end()
             if feature.id not in self.map_server:
                 self.map_server[feature.id] = Feature(feature.id, self.optimization_config)
@@ -688,7 +675,7 @@ class MSCKF(object):
             r_thin = r
 
         # Compute the Kalman gain.
-        P = self.state_server.state_cov  # obv noise MAY be wrong...
+        P = self.state_server.state_cov
         S = H_thin @ P @ H_thin.T + self.config.observation_noise * np.eye(H_thin.shape[0])
         c, lower = cho_factor(S)
         K_transpose = cho_solve((c, lower), H_thin @ P)
@@ -702,13 +689,13 @@ class MSCKF(object):
         
         if (np.linalg.norm(delta_x_imu[6:9]) > 0.5 or np.linalg.norm(delta_x_imu[12:15]) > 1.0):
             print("delta velocity: %f\n", np.linalg.norm(delta_x_imu.delta_x_imu[6:9]))
-            print("delta position: %f\n", np.linalg.norm(delta_x_imu.delta_x_imu[6:9]))
+            print("delta position: %f\n", np.linalg.norm(delta_x_imu.delta_x_imu[12:15]))
 
         dq_imu = small_angle_quaternion(delta_x_imu[0:3])
         self.state_server.imu_state.orientation = quaternion_multiplication(dq_imu, self.state_server.imu_state.orientation)
         self.state_server.imu_state.gyro_bias += delta_x_imu[3:6]
         self.state_server.imu_state.velocity += (delta_x_imu[6:9]).reshape((3,1))
-        self.state_server.imu_state.acc_bias += delta_x_imu[9:12]
+        self.state_server.imu_state.acc_bias += (delta_x_imu[9:12])
         print(f"state_server imu_acc bias: {self.state_server.imu_state.acc_bias}\n")
         self.state_server.imu_state.position += (delta_x_imu[12:15]).reshape((3,1))
         
