@@ -1,6 +1,8 @@
 
 from queue import Queue
 from threading import Thread
+from utils import *
+import numpy as np
 
 from config import ConfigEuRoC
 from image import ImageProcessor
@@ -52,13 +54,21 @@ class VIO(object):
             self.msckf.imu_callback(imu_msg)
 
     def process_feature(self):
+        step_count = 0
+        measured_position_array = np.zeros((3,1))
         while True:
             feature_msg = self.feature_queue.get()
-            if feature_msg is None:
+            if feature_msg is None or step_count >= 600:
+                graph_positional_error(measured_position_array)
                 return
             print('feature_msg', feature_msg.timestamp)
             result = self.msckf.feature_callback(feature_msg)
 
+            if result is not None:
+                measured_position = self.msckf.state_server.imu_state.position
+                measured_position_array = np.hstack((measured_position_array, measured_position))
+                
+            step_count += 1
             if result is not None and self.viewer is not None:
                 self.viewer.update_pose(result.cam0_pose)
         
@@ -78,14 +88,14 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.view:
-        viewer = Viewer()
+        # viewer = Viewer()
         pass
     else:
         viewer = None
 
     dataset = EuRoCDataset(args.path)
     dataset.set_starttime(offset=40.)   # start from static state
-
+    dataset.starttime
 
     img_queue = Queue()
     imu_queue = Queue()

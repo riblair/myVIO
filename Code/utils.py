@@ -1,5 +1,8 @@
 import numpy as np
-
+import csv
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend
+import matplotlib.pyplot as plt
 
 
 # quaternion representation: [x, y, z, w]
@@ -133,7 +136,45 @@ def from_two_vectors(v0, v1):
     q = q / np.linalg.norm(q)
     return quaternion_conjugate(q)   # hamilton -> JPL
 
+def graph_positional_error(measured_position_array: np.ndarray, path='data/mav0/state_groundtruth_estimate0/data.csv', starttime=1403636619758555392):
+    with open(path) as ground_truth:
+        _ = next(ground_truth)  # Skips header row in csv
+        
+        reader_obj = csv.reader(ground_truth)
+        row_idx = 0
+        gt_x = []
+        gt_y = []
+        gt_z = []
+        for row in reader_obj:
+            if int(row[0]) < starttime:
+                continue
+            # if row_idx >= measured_position_array.shape[1]:
+            #     break
+            if row_idx == 0:
+                x_off = float(row[1])
+                y_off = float(row[2])
+                z_off = float(row[3])
+            gt_x.append(float(row[1])-x_off)
+            gt_y.append(float(row[2])-y_off)
+            gt_z.append(float(row[3])-z_off)
+            row_idx += 1
+    plt.figure()
+    plt.plot(gt_x, gt_z, label='Ground Truth', color='red')
+    plt.xlabel("X")
+    plt.ylabel("Z")
+    plt.savefig('ground_truth_XZ.png')
+    plt.plot(measured_position_array[0, :], measured_position_array[2, :], label='Estimate', color='blue')
+    plt.savefig('estimate_XZ.png')
+    
+    plt.figure()
+    plt.plot(gt_x, gt_y, label='Ground Truth', color='red')
+    plt.xlabel("X")
+    plt.ylabel("Z")
+    plt.savefig('ground_truth_XY.png')
+    plt.plot(measured_position_array[0, :], measured_position_array[1, :], label='Estimate', color='blue')
+    plt.savefig('estimate_XY.png')
 
+# graph_positional_error(np.zeros((1, 10000)))
 
 class Isometry3d(object):
     """
