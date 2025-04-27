@@ -700,14 +700,27 @@ class MSCKF(object):
         self.state_server.imu_state.acc_bias += delta_x_imu[9:12]
         self.state_server.imu_state.position += delta_x_imu[12:15]
         
+        dq_extrinsic = small_angle_quaternion(delta_x_imu[0:3])
+        self.state_server.imu_state.R_imu_cam0 = to_rotation(dq_extrinsic) @ self.state_server.imu_state.R_imu_cam0
+        self.state_server.imu_state.t_cam0_imu += delta_x_imu[18:21]
+        
         # Update the camera states.
-        ...
+        cam_state_iter = iter(self.state_server.cam_states)
+        for i in range(len(self.state_server.cam_states)):
+            delta_x_cam = delta_x[21+i*6: 21+i+6 + 6]
+            dq_cam = small_angle_quaternion(delta_x_cam[0:3])
+            cam_state_iter[1].orientation = quaternion_multiplication(
+                dq_cam, cam_state_iter[1].orientation
+            )
+            cam_state_iter[1].position += delta_x_cam[len(delta_x_cam)-4:]
 
         # Update state covariance.
-        ...
+        I_KH = np.eye(K.shape[0], H_thin.shape[1]) - K@H_thin
+        self.state_server.state_cov = I_KH @ self.state_server.state_cov
 
         # Fix the covariance to be symmetric
-        ...
+        state_cov_fixed = (self.state_server.state_cov + self.state_server.state_cov.T) / 2.0
+        self.state_server.state_cov = state_cov_fixed
 
     def gating_test(self, H, r, dof):
         P1 = H @ self.state_server.state_cov @ H.T
