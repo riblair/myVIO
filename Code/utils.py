@@ -10,6 +10,7 @@ def skew(vec):
     """
     Create a skew-symmetric matrix from a 3-element vector.
     """
+    # vec = np.reshape(vec, (3,1))
     x, y, z = vec
     return np.array([
         [0, -z, y],

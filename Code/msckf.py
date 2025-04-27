@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.stats import chi2
 from scipy.spatial.transform import Rotation
+from scipy.sparse import csr_matrix
+from scipy.linalg import cho_factor, cho_solve
 
 from utils import *
 from feature import Feature
@@ -255,7 +257,7 @@ class MSCKF(object):
         
         # Normalize the gravity and save to IMUState   
         gravity_norm = np.linalg.norm(lin_avg)
-        IMUState.gravity = np.array([0., 0., -gravity_norm]) # .reshape((1,3))
+        IMUState.gravity = np.array([0., 0., -gravity_norm]).reshape((3,1))
 
         # Initialize the initial orientation, so that the estimation
         # is consistent with the inertial frame.
@@ -351,8 +353,9 @@ class MSCKF(object):
         R_kk_1 = to_rotation(imu_state.orientation_null)
         Phi[0:3, 0:3] = to_rotation(imu_state.orientation) @ np.transpose(R_kk_1)
         
-        u = R_kk_1 @ imu_state.gravity 
-        s = np.linalg.inv*(np.transpose(u) @ u) @ np.transpose(u) # this causes crashes due to matmul / singular matrix errors
+        u = R_kk_1 @ imu_state.gravity
+        u = np.reshape(u, (3,1)) 
+        s = np.linalg.inv(np.transpose(u) @ u) @ np.transpose(u) # this causes crashes due to matmul / singular matrix errors
         A1 = Phi[6:9, 0:3]
         w1 = skew(imu_state.velocity_null - imu_state.velocity) @ imu_state.gravity
         Phi[6:9, 0:3] = A1 - (A1@u-w1)
@@ -402,8 +405,9 @@ class MSCKF(object):
         
         # Get the orientation, velocity, position
         curr_q = self.state_server.imu_state.orientation
-        curr_v = self.state_server.imu_state.velocity
+        curr_v = np.reshape(self.state_server.imu_state.velocity, (3,1))
         curr_p = self.state_server.imu_state.position
+        acc = np.reshape(acc, (3,1))
         
         # Compute the dq_dt, dq_dt2 in equation (1) in "MSCKF" paper
         dq_dt = (math.cos(gyro_norm*dt*0.5)*np.identity(4) + 1/gyro_norm*math.sin(gyro_norm*dt*0.5)*omega_mat) @ curr_q
@@ -414,22 +418,22 @@ class MSCKF(object):
         
         # Apply 4th order Runge-Kutta 
         # k1 = f(tn, yn)
-        k1_v_dot = to_rotation(curr_q).T * acc + IMUState.gravity
+        k1_v_dot = to_rotation(curr_q).T @ acc + IMUState.gravity  # 3x3 (makes sense)
         k1_p_dot = curr_v
 
         # k2 = f(tn+dt/2, yn+k1*dt/2)
-        k1_v = curr_v + k1_v_dot * dt / 2
-        k2_v_dot =  dR_dt2_transpose* acc + IMUState.gravity
+        k1_v = curr_v + k1_v_dot * dt / 2  # 3x3
+        k2_v_dot =  dR_dt2_transpose @ acc + IMUState.gravity
         k2_p_dot = k1_v
         
         # k3 = f(tn+dt/2, yn+k2*dt/2)
         k2_v = curr_v + k2_v_dot * dt / 2
-        k3_v_dot = dR_dt2_transpose * acc + IMUState.gravity
+        k3_v_dot = dR_dt2_transpose @ acc + IMUState.gravity
         k3_p_dot = k2_v
 
         # k4 = f(tn+dt, yn+k3*dt)
         k3_v = curr_v + k3_v_dot * dt
-        k4_v_dot = dR_dt_transpose * acc + IMUState.gravity
+        k4_v_dot = dR_dt_transpose @ acc + IMUState.gravity
         k4_p_dot = k3_v
 
         # yn+1 = yn + dt/6*(k1+2*k2+2*k3+k4)
@@ -439,7 +443,7 @@ class MSCKF(object):
 
         # update the imu state
         self.state_server.imu_state.orientation = quaternion_normalize(new_q)
-        self.state_server.imu_state.velocity = new_v
+        self.state_server.imu_state.velocity = new_v  # FIXME: This is a 3x3, not a 3x1.
         self.state_server.imu_state.position = new_p
 
     
@@ -646,21 +650,56 @@ class MSCKF(object):
         Section III.B: by stacking multiple observations, we can compute the residuals in equation (6) in "MSCKF" paper 
         """
         # Check if H and r are empty
-        ...
+        if H.all() == 0 or r.all() == 0:  # Could also check for size, but C++ checks for zero. Kept this for consistency
+            return
 
         # Decompose the final Jacobian matrix to reduce computational
         # complexity.
-        ...
+        H_thin = None  # C++ assigns them as just empty matricies. They get values later in code, but this should be a temp fix.
+        r_thin = None
+        
+        if H.shape[0] > H.shape[1]:
+            H_sparse = csr_matrix(H).toarray()
+            Q, R = np.linalg.qr(H_sparse)
+            
+            H_temp = Q.T @ H  # shape: (k, n)
+            r_temp = Q.T @ r  # shape: (k,)
+
+            # Compute the number of rows to keep
+            num_rows = 21 + 6 * len(self.state_server.cam_states)
+
+            # Take the top rows as in Eigen's .topRows() and .head()
+            H_thin = H_temp[:num_rows, :]
+            r_thin = r_temp[:num_rows]
+            
+        else:
+            H_thin = H
+            r_thin = r
 
         # Compute the Kalman gain.
-        ...
+        P = self.state_server.state_cov
+        S = H_thin @ P @ H_thin.T + self.config.observation_noise @ np.eye(H_thin.shape[0])
+        c, lower = cho_factor(S)
+        K_transpose = cho_solve((c, lower), H_thin @ P)
+        K = K_transpose.T
 
         # Compute the error of the state.
-        ...
+        delta_x = K * r_thin
         
         # Update the IMU state.
-        ...
+        delta_x_imu = delta_x[:21]
+        
+        if (np.linalg.norm(delta_x_imu[6:9]) > 0.5 or np.linalg.norm(delta_x_imu[12:15]) > 1.0):
+            print("delta velocity: %f\n", np.linalg.norm(delta_x_imu.delta_x_imu[6:9]))
+            print("delta position: %f\n", np.linalg.norm(delta_x_imu.delta_x_imu[6:9]))
 
+        dq_imu = small_angle_quaternion(delta_x_imu[0:3])
+        self.state_server.imu_state.orientation = quaternion_multiplication(dq_imu, self.state_server.imu_state.orientation)
+        self.state_server.imu_state.gyro_bias += delta_x_imu[3:6]
+        self.state_server.imu_state.velocity += delta_x_imu[6:9]
+        self.state_server.imu_state.acc_bias += delta_x_imu[9:12]
+        self.state_server.imu_state.position += delta_x_imu[12:15]
+        
         # Update the camera states.
         ...
 
