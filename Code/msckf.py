@@ -456,7 +456,7 @@ class MSCKF(object):
         """
         # Get the imu_state, rotation from imu to cam0, and translation from cam0 to imu
         r_i_c = self.state_server.imu_state.R_imu_cam0
-        t_c_i = self.state_server.imu_state.t_cam0_imu
+        t_c_i = np.reshape(self.state_server.imu_state.t_cam0_imu, (3,1))
 
         # Add a new camera state to the state server.
         r_w_i = to_rotation(self.state_server.imu_state.orientation)
@@ -467,7 +467,7 @@ class MSCKF(object):
 
         new_cam_state.timestamp = time
         new_cam_state.orientation = to_quaternion(r_w_c)
-        new_cam_state.position = t_c_w
+        new_cam_state.position = t_c_w.flatten()
 
         new_cam_state.orientation_null = new_cam_state.orientation
         new_cam_state.position_null = new_cam_state.position
@@ -482,7 +482,7 @@ class MSCKF(object):
         J_mat[0:3, 0:3] = r_i_c
         J_mat[0:3, 15:18] = np.identity(3)
 
-        J_mat[3:6, 0:3] = skew(r_w_i.T @ t_c_i)
+        J_mat[3:6, 0:3] = skew((r_w_i.T @ t_c_i).flatten())
         J_mat[3:6, 12:15] = np.identity(3)
         J_mat[3:6, 18:21] = np.identity(3)
 
@@ -517,7 +517,8 @@ class MSCKF(object):
         
         # add all features in the feature_msg to self.map_server
         for feature in feature_msg.features:  # TODO: Unsure of object type of feature msg, so this might error. Verify.
-            if self.map_server.get(feature.id) == len(self.map_server) - 1:  # equivalent to C++ end()
+            # if self.map_server.get(feature.id) == len(self.map_server) - 1:  # equivalent to C++ end()
+            if feature.id not in self.map_server:
                 self.map_server[feature.id] = Feature(feature.id)
                 self.map_server[feature.id].observations[state_id] = np.array([feature.u0, feature.v0, feature.u1, feature.v1]).reshape((4,1))
             else:
@@ -525,7 +526,8 @@ class MSCKF(object):
                 tracked_feature_num += 1
 
         # update the tracking rate
-        tracking_rate = tracked_feature_num / curr_feature_num
+        if curr_feature_num != 0:
+            self.tracking_rate = tracked_feature_num / curr_feature_num
         return
 
     def measurement_jacobian(self, cam_state_id, feature_id):
@@ -1020,7 +1022,7 @@ class MSCKF(object):
         body_velocity = IMUState.T_imu_body.R @ imu_state.velocity
 
         R_w_c = imu_state.R_imu_cam0 @ T_i_w.R.T
-        t_c_w = imu_state.position + T_i_w.R @ imu_state.t_cam0_imu
+        t_c_w = (imu_state.position + T_i_w.R @ np.reshape(imu_state.t_cam0_imu, (3,1))).flatten()
         T_c_w = Isometry3d(R_w_c.T, t_c_w)
 
         return namedtuple('vio_result', ['timestamp', 'pose', 'velocity', 'cam0_pose'])(
