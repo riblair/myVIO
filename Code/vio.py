@@ -58,7 +58,7 @@ class VIO(object):
         measured_position_array = np.zeros((3,1))
         while True:
             feature_msg = self.feature_queue.get()
-            if feature_msg is None or step_count >= 600:
+            if feature_msg is None:
                 graph_positional_error(measured_position_array)
                 return
             print('feature_msg', feature_msg.timestamp)
@@ -88,8 +88,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.view:
-        # viewer = Viewer()
-        pass
+        viewer = Viewer()
+        # pass
     else:
         viewer = None
 
