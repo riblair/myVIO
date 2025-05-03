@@ -50,3 +50,20 @@ class VisualOdometry(nn.Module):
         
         return res
     
+    def freeze_fnet(self):
+        # Freeze the fnet layer to prevent updates during training. We want to keep the pre-trained weights
+        for param in self.fnet.parameters():
+            param.requires_grad = False
+            
+    def loss(self, gt: torch.Tensor, measured: torch.Tensor):
+        pos_hat, orient_hat = measured[:, :3], measured[:, 3:]
+        pos, orient = gt[:, :3], gt[:, 3:]
+        
+        orient_hat = torch.nn.functional.normalize(orient_hat, p=2, dim=1)
+        orient = torch.nn.functional.normalize(orient, p=2, dim=1)
+        
+        pos_loss = nn.L1Loss(pos_hat, pos)
+        orient_loss = geodesic_loss(quaternion_to_matrix(orient_hat), quaternion_to_matrix(orient))
+        
+        return pos_loss + orient_loss
+    

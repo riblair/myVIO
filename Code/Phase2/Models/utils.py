@@ -511,3 +511,49 @@ class POLAUpdate(nn.Module):
             out = torch.split(out, [batch_dim, batch_dim], dim=0)
 
         return out
+
+def geodesic_loss(ground_truth:torch.Tensor, measured: torch.Tensor, epsilon=1e-7, reduction='none'):
+    """ Calculated Loss for quaternion/orientation error """
+    R_diffs = measured @ ground_truth.permute(0, 2, 1)
+    # See: https://github.com/pytorch/pytorch/issues/7500#issuecomment-502122839.
+    traces = R_diffs.diagonal(dim1=-2, dim2=-1).sum(-1)
+    dists = torch.acos(torch.clamp((traces - 1) / 2, -1 + epsilon, 1 - epsilon))
+    if reduction == 'none':
+        return dists
+    elif reduction == 'mean':
+        return dists.mean()
+    elif reduction == 'sum':
+        return dists.sum()
+    else:
+        raise ValueError(f"Unknown reduction setting. Currently '{reduction}'")
+    
+def quaternion_to_matrix(quaternions: torch.Tensor) -> torch.Tensor:
+    """
+    Convert rotations given as quaternions to rotation matrices.
+
+    Args:
+        quaternions: quaternions with real part first,
+            as tensor of shape (..., 4).
+
+    Returns:
+        Rotation matrices as tensor of shape (..., 3, 3).
+    """
+    r, i, j, k = torch.unbind(quaternions, -1)
+    # pyre-fixme[58]: `/` is not supported for operand types `float` and `Tensor`.
+    two_s = 2.0 / (quaternions * quaternions).sum(-1)
+
+    o = torch.stack(
+        (
+            1 - two_s * (j * j + k * k),
+            two_s * (i * j - k * r),
+            two_s * (i * k + j * r),
+            two_s * (i * j + k * r),
+            1 - two_s * (i * i + k * k),
+            two_s * (j * k - i * r),
+            two_s * (i * k - j * r),
+            two_s * (j * k + i * r),
+            1 - two_s * (i * i + j * j),
+        ),
+        -1,
+    )
+    return o.reshape(quaternions.shape[:-1] + (3, 3))
