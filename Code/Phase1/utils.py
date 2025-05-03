@@ -176,6 +176,9 @@ def graph_positional_error(measured_position_array: np.ndarray, path='data/mav0/
 
 # graph_positional_error(np.zeros((1, 10000)))
 
+def csv_writer(measured_position_array: np.ndarray):
+    np.savetxt("measured_data.txt", measured_position_array, delimiter=',', header='#timestamp,tx,ty,tz,qx,qy,qz,qw')
+
 class Isometry3d(object):
     """
     3d rigid transform.

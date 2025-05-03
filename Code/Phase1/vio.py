@@ -55,19 +55,27 @@ class VIO(object):
 
     def process_feature(self):
         step_count = 0
-        measured_position_array = np.zeros((3,1))
+        # measured_position_array = np.zeros((3,1))
+        measured_data_array = np.zeros((1,8))
+        measured_data = np.zeros(8)
         while True:
             feature_msg = self.feature_queue.get()
             if feature_msg is None:
-                graph_positional_error(measured_position_array)
+                # graph_positional_error(measured_position_array)
+                csv_writer(measured_data_array[1:, :])
                 return
             print('feature_msg', feature_msg.timestamp)
             result = self.msckf.feature_callback(feature_msg)
 
             if result is not None:
-                measured_position = self.msckf.state_server.imu_state.position
-                measured_position_array = np.hstack((measured_position_array, measured_position))
-                
+                measured_data[0] = feature_msg.timestamp
+                measured_data[1:4] = self.msckf.state_server.imu_state.position.flatten()
+                measured_data[4] = self.msckf.state_server.imu_state.orientation[3]
+                measured_data[5:] = self.msckf.state_server.imu_state.orientation[:3].flatten()
+
+                measured_data_array = np.vstack((measured_data_array, measured_data[np.newaxis, :]))
+                # measured_position_array = np.hstack((measured_position_array, measured_position))
+
             step_count += 1
             if result is not None and self.viewer is not None:
                 self.viewer.update_pose(result.cam0_pose)
