@@ -4,3 +4,8 @@ data/*
 __pycache__
 venv/
 video.mp4
+Code/Phase2/Data/*
+stamped_groundtruth.txt
+measured_data.txt
+Output.mp4
+data_creater.py

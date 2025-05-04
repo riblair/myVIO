@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from Path import Path, StraightLine, Sinusoid, Circle, FigureEight, HyperbolicParaboloid
+from Path import Path, STRAIGHT_LINE, SINUSOID, CIRCLE, FIGURE_EIGHT, HYPERBOLIC_PARABOLOID
 import utils as util
 
 class PathGrapher:
@@ -35,9 +35,9 @@ class PathGrapher:
         plt.plot(gt_positions[:, 0], gt_positions[:, 1], label='Ground Truth')
         if self.estim is not None: plt.plot(est_positions[:, 0], est_positions[:, 1], label='Estimated', linestyle='--')
         plt.xlabel('X')
-        plt.xlim([-10,10])
+        plt.xlim([-50,50])
         plt.ylabel('Y')
-        plt.ylim([-10,10])
+        plt.ylim([-50,50])
         plt.title(f'[{self.ground_truth.name}] XY Trajectory')
         plt.legend()
         plt.grid(True)
@@ -51,9 +51,9 @@ class PathGrapher:
         plt.plot(gt_positions[:, 0], gt_positions[:, 2], label='Ground Truth')
         if self.estim is not None: plt.plot(est_positions[:, 0], est_positions[:, 2], label='Estimated', linestyle='--')
         plt.xlabel('X')
-        plt.xlim([-10,10])
+        plt.xlim([-50,50])
         plt.ylabel('Z')
-        plt.ylim([-10,10])
+        plt.ylim([0,75])
         plt.title(f'[{self.ground_truth.name}] XZ Trajectory')
         plt.legend()
         plt.grid(True)
@@ -68,11 +68,11 @@ class PathGrapher:
         ax.plot(gt_positions[:, 0], gt_positions[:, 1], gt_positions[:, 2], label='Ground Truth')
         if self.estim is not None: ax.plot(est_positions[:, 0], gt_positions[:, 1], est_positions[:, 2], label='Estimated', linestyle='--')
         ax.set_xlabel('X')
-        ax.set_xlim([-10,10])
+        ax.set_xlim([-50,50])
         ax.set_ylabel('Y')
-        ax.set_ylim([-10,10])
+        ax.set_ylim([-50,50])
         ax.set_zlabel('Z')
-        ax.set_zlim([-10,10])
+        ax.set_zlim([0,75])
         ax.set_title(f'[{self.ground_truth.name}] 3d Trajectory')
         ax.legend()
         ax.grid(True)
@@ -105,11 +105,11 @@ class PathGrapher:
 
 if __name__ == '__main__':
     path_list = []
-    path_list.append(PathGrapher(StraightLine(np.array([-2,-5,0]), np.array([9,8.5,5]))))
-    path_list.append(PathGrapher(Sinusoid(np.array([-7,-2,3]), np.array([8,9,9]), x_params=(0.25, 5, 0), y_params=(0.25, 2, 1), z_params=(0.25, 3, 2))))
-    path_list.append(PathGrapher(Circle(np.zeros(3), 15)))
-    path_list.append(PathGrapher(FigureEight(np.zeros(3), 15, 15)))
-    path_list.append(PathGrapher(HyperbolicParaboloid(np.zeros(3), 18, 14, 0.05)))
+    path_list.append(PathGrapher(STRAIGHT_LINE))
+    path_list.append(PathGrapher(CIRCLE))
+    path_list.append(PathGrapher(SINUSOID))
+    path_list.append(PathGrapher(FIGURE_EIGHT))
+    path_list.append(PathGrapher(HYPERBOLIC_PARABOLOID))
     
     for pg in path_list:
         pg.generate_plots()

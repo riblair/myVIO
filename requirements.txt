@@ -1,0 +1,4 @@
+bpy
+numpy
+opencv-python
+matplotlib

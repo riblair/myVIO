@@ -6,6 +6,8 @@ import utils as util
 R_H = np.array([0, 0, 1])
 Q_H = np.array([0, 0, 0, 1])
 
+# See Bottom of file for ALL EXAMPLE PATH
+
 class Path(ABC):
 
     def __init__(self, name, timeframe=10):
@@ -39,7 +41,7 @@ class Path(ABC):
 class StraightLine(Path):
     "Drone moves in a straight line between two points"
     def __init__(self, point_a: np.ndarray, point_b: np.ndarray, timeframe=10):
-        super().__init__("Straight Line", timeframe)
+        super().__init__("Straight_Line", timeframe)
         self.x_i = point_a
         self.direction_vector = (point_b - point_a) / timeframe
 
@@ -86,7 +88,7 @@ class Circle(Path):
 
 class FigureEight(Path):
     def __init__(self, x_i: np.ndarray, major_axis: float, minor_axis: float, timeframe=10):
-        super().__init__("Figure Eight", timeframe)
+        super().__init__("Figure_Eight", timeframe)
         self.origin = x_i
         self.a = major_axis / 2
         self.b = minor_axis / 2
@@ -103,7 +105,7 @@ class FigureEight(Path):
 
 class HyperbolicParaboloid(Path):
     def __init__(self, x_i: np.ndarray, x_width: float, y_width: float, z_width: float, timeframe=10):
-        super().__init__("Hyperbolic Paraboloid", timeframe)
+        super().__init__("Hyperbolic_Paraboloid", timeframe)
         self.origin = x_i
         self.r_x = x_width / 2
         self.r_y = y_width / 2
@@ -121,15 +123,8 @@ class HyperbolicParaboloid(Path):
 
         return self.origin + np.array([x, y, z])
 
-
-
-# direction_vector = np.array([1,0,0])
-# dir_norm = np.linalg.norm(direction_vector)
-# if dir_norm > 1e-10 : dir_normalized = direction_vector / dir_norm
-# else: dir_normalized = np.array([0,0,1])
-# # find quaternion from "hover" angle
-# q_v_h = util.from_two_vectors(R_H, dir_normalized)
-# # Multiply this by a scalar to get the final quat...
-# interpolated_q = util.slerp(Q_H, q_v_h, 0.2)     
-# print(interpolated_q)
-    
+STRAIGHT_LINE = StraightLine(np.array([-25,-30,50]), np.array([19, 28.5, 35]))
+SINUSOID = Sinusoid(np.array([-37,20,40]), np.array([30,-39,50]), x_params=(6, 1, 0), y_params=(8, 0.5, 1), z_params=(10, 0.25, 2))
+CIRCLE = Circle(np.array([0,0,50]), 40)
+FIGURE_EIGHT = FigureEight(np.array([0,0,50]), 50, 30)
+HYPERBOLIC_PARABOLOID = HyperbolicParaboloid(np.array([0,0,50]), 48, 30, 0.01)
