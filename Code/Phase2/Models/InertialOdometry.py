@@ -2,11 +2,11 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-from utils import *
+import Models.utils as utils
 
 
 class InertialOdometry(nn.Module):
-    def __init__(self, input_size=6, hidden_size=128, output_size=6):
+    def __init__(self, input_size=6, hidden_size=128, output_size=7):
         super(InertialOdometry, self).__init__()
         self.lstm1 = nn.LSTM(input_size, hidden_size, batch_first=True)
         # self.fc1 = nn.Linear(hidden_size, 128)
@@ -16,8 +16,8 @@ class InertialOdometry(nn.Module):
         self.fc2 = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
-        x = self.lstm1(x)
-        x = self.lstm2(x)
+        x, _ = self.lstm1(x)
+        x, _ = self.lstm2(x)
         x = self.fc1(x[:, -1, :])
         x = self.prelu(x)
         x = self.fc2(x)
@@ -30,7 +30,8 @@ class InertialOdometry(nn.Module):
         orient_hat = torch.nn.functional.normalize(orient_hat, p=2, dim=1)
         orient = torch.nn.functional.normalize(orient, p=2, dim=1)
         
-        pos_loss = nn.L1Loss(pos_hat, pos)
-        orient_loss = geodesic_loss(quaternion_to_matrix(orient_hat), quaternion_to_matrix(orient))
+        loss_fn = nn.L1Loss()
+        pos_loss = loss_fn(pos_hat, pos)
+        orient_loss = utils.geodesic_loss(utils.quaternion_to_matrix(orient_hat), utils.quaternion_to_matrix(orient), reduction='mean')
         
         return pos_loss + orient_loss

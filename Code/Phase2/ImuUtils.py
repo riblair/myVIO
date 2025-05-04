@@ -524,4 +524,5 @@ def gyroscope_demo():
 if __name__ == "__main__":
     # pass
     # gyroscope_demo()
-    accelerometer_demo()
+    # accelerometer_demo()
+    run_acc_demo()

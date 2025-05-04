@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import numpy as np
 import math
 import utils as util
+import yaml
 
 R_H = np.array([0, 0, 1])
 Q_H = np.array([0, 0, 0, 1])
@@ -18,6 +19,10 @@ class Path(ABC):
     @abstractmethod
     def get_position(self, time) -> np.ndarray:
         "Given a time between [0, t_f], compute X(t)"
+        raise NotImplementedError("Implement me :)")
+    
+    @abstractmethod
+    def export_hyperparameters(self, filepath):
         raise NotImplementedError("Implement me :)")
     
     def get_orientation(self, time) -> np.ndarray:
@@ -51,6 +56,15 @@ class StraightLine(Path):
             return np.zeros(3)
         return self.direction_vector * time + self.x_i
     
+    def export_hyperparameters(self, filepath):
+        data = {
+            'name' : str(self.name),
+            'x_i' : self.x_i.tolist(),
+            'direction' : self.direction_vector.tolist()
+        }
+        with open(filepath, 'w') as yaml_file:
+            yaml.dump(data, yaml_file)
+    
 class Sinusoid(Path):
     "Moves from point a to point b with with sinusiodally variations in each axis"
     def __init__(self, point_a: np.ndarray, point_b: np.ndarray, x_params, y_params, z_params, timeframe=10):
@@ -68,6 +82,18 @@ class Sinusoid(Path):
         position[1] += self.y_params[0] * math.sin(self.y_params[1]*time+self.y_params[2])
         position[2] += self.z_params[0] * math.sin(self.z_params[1]*time+self.z_params[2])
         return position
+    
+    def export_hyperparameters(self, filepath):
+        data = {
+            'name' : str(self.name),
+            'x_i' : self.x_i.tolist(),
+            'direction' : self.direction_vector.tolist(),
+            'x_params' : list(self.x_params),
+            'y_params' : list(self.y_params),
+            'z_params' : list(self.z_params)
+        }
+        with open(filepath, 'w') as yaml_file:
+            yaml.dump(data, yaml_file)
 
     
 class Circle(Path):
@@ -85,6 +111,15 @@ class Circle(Path):
         y = self.center[1] + self.radius * np.sin(theta)
         z = self.center[2]  # constant height
         return np.array([x, y, z])
+    
+    def export_hyperparameters(self, filepath):
+        data = {
+            'name' : str(self.name),
+            'center' : self.center.tolist(),
+            'radius' : self.radius
+        }
+        with open(filepath, 'w') as yaml_file:
+            yaml.dump(data, yaml_file)
 
 class FigureEight(Path):
     def __init__(self, x_i: np.ndarray, major_axis: float, minor_axis: float, timeframe=10):
@@ -102,6 +137,16 @@ class FigureEight(Path):
         y = self.origin[1] + self.b * np.sin(t) * np.cos(t)
         z = self.origin[2]
         return np.array([x, y, z])
+    
+    def export_hyperparameters(self, filepath):
+        data = {
+            'name' : str(self.name),
+            'origin' : self.origin.tolist(),
+            'a' : self.a,
+            'b' : self.b
+        }
+        with open(filepath, 'w') as yaml_file:
+            yaml.dump(data, yaml_file)
 
 class HyperbolicParaboloid(Path):
     def __init__(self, x_i: np.ndarray, x_width: float, y_width: float, z_width: float, timeframe=10):
@@ -122,6 +167,17 @@ class HyperbolicParaboloid(Path):
         z = self.z_scale * (x**2 - y**2)
 
         return self.origin + np.array([x, y, z])
+    
+    def export_hyperparameters(self, filepath):
+        data = {
+            'name' : str(self.name),
+            'origin' : self.origin.tolist(),
+            'r_x' : self.r_x,
+            'r_y' : self.r_y,
+            'z_scale' : self.z_scale
+        }
+        with open(filepath, 'w') as yaml_file:
+            yaml.dump(data, yaml_file)
 
 STRAIGHT_LINE = StraightLine(np.array([-25,-30,50]), np.array([19, 28.5, 35]))
 SINUSOID = Sinusoid(np.array([-37,20,40]), np.array([30,-39,50]), x_params=(6, 1, 0), y_params=(8, 0.5, 1), z_params=(10, 0.25, 2))

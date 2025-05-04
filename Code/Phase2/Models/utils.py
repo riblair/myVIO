@@ -10,7 +10,7 @@ This code was originally written for this paper: https://arxiv.org/abs/2203.1133
 
 from itertools import repeat
 import collections.abc
-from weight_init import trunc_normal_
+from Models.weight_init import trunc_normal_
 
 
 # From PyTorch internals

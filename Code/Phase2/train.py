@@ -12,28 +12,39 @@ from Models.InertialOdometry import InertialOdometry as IO
 from Models.VisualOdometry import VisualOdometry as VO
 from Models.VisualInertialOdometry import VisualInertialOdometry as VIO
 
-
-def generate_IO_batch(batch_size: int):
+def generate_IO_batch(batch_size: int, train=True):
     # Need to return (batchsize, 10, 6) set of imu data points
     batch = []
+    ground_truth = []
+    csv_rows = []
     num_trajectories = 0
-    for _, _, files in os.walk('data'):
+    directory_filepath = 'Code/Phase2/data/train' if train else 'Code/Phase2/data/val'
+    for _, _, files in os.walk(directory_filepath):
         num_trajectories += len(files)
-    traj_idx = random.randint(1, num_trajectories)
-    data_filepath = f'data/traj_{traj_idx}.csv'
+    traj_idx = random.randint(1, num_trajectories-1)
+    data_filepath = directory_filepath + f'/traj_{traj_idx}.csv'
+    gt_filepath = f'Code/Phase2/groundtruth/train/traj_{traj_idx}.csv' if train else f'Code/Phase2/groundtruth/val/traj_{traj_idx}.csv'
     with open(data_filepath, "r") as file:
         reader = csv.reader(file)
-        num_rows = len(reader)
-        # subtract 10 since we always want 10 datapoints. prevents index out of bounds error
-        for _ in range(batch_size):
-            starting_idx = random.randint(0, num_rows-10)
-            batch_element = []
-            for i in range(starting_idx, starting_idx+10):
-                row = reader[i]
-                batch_element.append(row)  # input row as a row, so batch is a 2d array
-            batch.append(batch_element)
-    batch_np = np.array(batch)
-    return torch.from_numpy(batch_np)
+        # lines = file.readlines()
+        rows =[r for r in reader]
+    with open(gt_filepath, "r") as file:
+        reader = csv.reader(file)
+        gt_rows = [r for r in reader]
+    num_data_rows = len(rows)
+    # subtract 10 since we always want 10 datapoints. prevents index out of bounds error
+    for _ in range(batch_size):
+        starting_idx = random.randint(0, num_data_rows-10)
+        batch_element = []
+        csv_rows.append((starting_idx, starting_idx+10))
+        for i in range(starting_idx, starting_idx+10):
+            data_row = rows[i]
+            batch_element.append(data_row[0:6])  # input row as a row, so batch is a 2d array
+        batch.append(batch_element)
+        ground_truth.append(gt_rows[starting_idx])
+    batch_np = np.array(batch, dtype=np.float32)
+    ground_truth = np.array(ground_truth, dtype=np.float32)
+    return torch.from_numpy(batch_np), torch.from_numpy(ground_truth)
 
 def generate_VO_batch(batch_size: int):
     batch = []
@@ -85,7 +96,7 @@ def main(args):
     
     if args.mode == 'IO':
         model = IO()
-        optimizer = Adam(lr=0.001)
+        optimizer = Adam(model.parameters(), lr=0.001)
         epochs = 200
         batch_size = 32
     elif args.mode == 'VO':
@@ -116,22 +127,22 @@ def main(args):
         raise ValueError(f"Unknown odometry mode. Expected 'IO', 'VO', or 'VIO'. Instead got {args.mode}")
     
     start_epoch = 0
-    save_checkpoint = 5
+    save_checkpoint = 25
     
     for epoch in range(start_epoch, epochs):
-        num_iterations_per_epoch = 5
+        num_iterations_per_epoch = 100
         for per_epoch_counter in range(num_iterations_per_epoch):
             if args.mode == 'IO':
-                batch = generate_IO_batch(batch_size)
+                batch, ground_truth = generate_IO_batch(batch_size)
             elif args.mode == 'VO':
                 batch = generate_VO_batch(batch_size)
             elif args.mode == 'VIO':
                 batch = generate_VIO_batch(batch_size)
             
             estimated_pose = model(batch)
-            loss = model.loss(..., estimated_pose) # TODO: Read ground truth and import estimated pose
+            trainging_loss = model.loss(ground_truth, estimated_pose) # TODO: Read ground truth and import estimated pose
             optimizer.zero_grad()
-            loss.backward()
+            trainging_loss.backward()
             optimizer.step()
             
             # Save checkpoint every some SaveCheckPoint's iterations
@@ -150,33 +161,29 @@ def main(args):
                         "epoch": epoch,
                         "model_state_dict": model.state_dict(),
                         "optimizer_state_dict": optimizer.state_dict(),
-                        "loss": loss,
+                        "loss": trainging_loss,
                     },
                     SaveName,
                 )
                 print("\n" + SaveName + " Model Saved...")
-            
+                
         with torch.no_grad():
             if args.mode == 'IO':
-                batch = generate_IO_batch(batch_size)
+                batch, ground_truth = generate_IO_batch(batch_size, train=False)
             elif args.mode == 'VO':
                 batch = generate_VO_batch(batch_size)
             elif args.mode == 'VIO':
                 batch = generate_VIO_batch(batch_size)
-            # val_ims = val_ims.to(cuda)
-            # val_labels = val_labels.to(cuda)
-            # val_corners = val_corners.to(cuda)
-            # print(f"VAL_IDX: {val_idx}")
-            # result = model.validation_step((val_ims, val_labels, val_corners, val_idx))
-        
-        # print(f"Validation Loss: {result['val_loss']}, Training Loss: {epoch_loss}")
+            val_pose = model(batch)
+            loss = model.loss(ground_truth, val_pose)
+        print(f"Validation Loss: {loss}, Training Loss: {trainging_loss}")
             
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Train models for different modalities")
-    parser.add_argument('--data_file', type=str, required=True, help='Path to the data file')
+    parser.add_argument('--data_file', type=str, default='Code/Phase2/data/', help='Path to the data file')
     parser.add_argument('--batch_size', type=int, default=32, help='Input batch size for training')
-    parser.add_argument('--mode', type=str, choices=['VO', 'IO', 'VIO'], required=True, help='Mode of operation: VO, IO, or VIO')
+    parser.add_argument('--mode', type=str, default='IO', choices=['VO', 'IO', 'VIO'], help='Mode of operation: VO, IO, or VIO')
     parser.add_argument('--epochs', type=int, default=50, help='Number of epochs to train')
     parser.add_argument('--gpus', type=int, default=1, help='Number of GPUs')
     parser.add_argument('--fp16', action='store_true', help='Enable FP16 training')
