@@ -55,13 +55,12 @@ def render_scene(scene, file_path):
     bpy.ops.render.render(write_still = 1)
     bpy.data.images.remove(bpy.data.images['Render Result']) # to prevent memory backup
 
-def generate_image_data(args, path):
+def generate_image_data(directory:str, times: np.ndarray, positions: np.ndarray, euler_angles: np.ndarray):
     scene = setup_scene()
-    pg = PathGrapher(path)
-    times, positions, orientations = pg._generate_ground_truth('euler')
-    im_names = [f"{args.Outputs}Images/traj_{path.name}_{(i):05}.png" for i in range(len(times))]
+    im_names = [f"{directory}Images/im_{(i):05}.png" for i in range(len(times))]
     camera_obj = bpy.data.objects['Camera']
-    for (i_name, p, o) in zip(im_names, positions, orientations):
+    a = 0
+    for (i_name, p, o) in zip(im_names, positions, euler_angles):
         new_p = mathutils.Vector(p)
         new_o = mathutils.Euler(o)
         print(new_o)
@@ -69,22 +68,9 @@ def generate_image_data(args, path):
         camera_obj.rotation_euler = new_o
         bpy.context.view_layer.update()
         render_scene(scene, i_name)
-    # combines images into a video
-    os.system(f"ffmpeg -framerate 200 -y -pattern_type glob -i '{args.Outputs}Images/traj_{path.name}_*.png' -c:v libx264 -pix_fmt yuv420p {args.Outputs}_traj_{path.name}.mp4")
+        a+=1
+        if a == 10:
+            break
 
-if __name__ == '__main__':
-    args = env_setup()
-    if args.Path == "straight_line":
-        path = Path.STRAIGHT_LINE
-    elif args.Path == 'circle':
-        path = Path.CIRCLE
-    elif args.Path == 'sinusoid':
-        path = Path.SINUSOID
-    elif args.Path == 'figure_eight':
-        path = Path.FIGURE_EIGHT
-    elif args.Path == 'hyperbolic_paraboloid':
-        path = Path.HYPERBOLIC_PARABOLOID
-    else:
-        print(f"[ERROR] Wrong type given for '--Path' param. Expected ['straight_line', 'circle', 'sinusoid', 'figure_eight', 'hyperbolic_paraboloid'], given {args.Path}")
-        exit(1)
-    generate_image_data(args, path)
+    # combines images into a video
+    os.system(f"ffmpeg -framerate 200 -y -pattern_type glob -i '{directory}Images/im_*.png' -c:v libx264 -pix_fmt yuv420p {directory}video.mp4")

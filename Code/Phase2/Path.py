@@ -179,8 +179,31 @@ class HyperbolicParaboloid(Path):
         with open(filepath, 'w') as yaml_file:
             yaml.dump(data, yaml_file)
 
-STRAIGHT_LINE = StraightLine(np.array([-25,-30,50]), np.array([19, 28.5, 35]))
-SINUSOID = Sinusoid(np.array([-37,20,40]), np.array([30,-39,50]), x_params=(6, 1, 0), y_params=(8, 0.5, 1), z_params=(10, 0.25, 2))
-CIRCLE = Circle(np.array([0,0,50]), 40)
-FIGURE_EIGHT = FigureEight(np.array([0,0,50]), 50, 30)
-HYPERBOLIC_PARABOLOID = HyperbolicParaboloid(np.array([0,0,50]), 48, 30, 0.01)
+ACCEPTABLE_PATHS = ["Straight_Line", "Circle", "Sinusoid", "Figure_Eight", "Hyperbolic_Paraboloid"]
+
+start_x_train = np.array([-25,-30,50])
+end_x_train = np.array([19, 28.5, 35])
+start_x_test = np.array([25,-30,30])
+end_x_test = np.array([45, 28.5, 35])
+start_x_val = np.array([-25,-30,50])
+end_x_val = np.array([-40, -40, 60])
+
+STRAIGHT_LINE_TRAIN = StraightLine(start_x_train, end_x_train)
+STRAIGHT_LINE_TEST = StraightLine(start_x_test, end_x_test)
+STRAIGHT_LINE_VAL = StraightLine(start_x_val, end_x_val)
+
+SINUSOID_TRAIN = Sinusoid(start_x_train, end_x_train, x_params=(6, 1, 1), y_params=(4, 0.35, 3), z_params=(6, 0.35, 2))
+SINUSOID_TEST = Sinusoid(start_x_test, end_x_train,  x_params=(9, 2, 7), y_params=(12, 0.45, 5), z_params=(5, 0.5, 0))
+SINUSOID_VAL = Sinusoid(start_x_val, end_x_train,   x_params=(10, 1.5, 4), y_params=(8, 0.55, 2), z_params=(4, 0.45, 1.4))
+
+CIRCLE_TRAIN = Circle(np.array([2,15,50]), 40)
+CIRCLE_TEST = Circle(np.array([-4,5,34]), 38)
+CIRCLE_VAL = Circle(np.array([-25,0,75]), 36)
+
+FIGURE_EIGHT_TRAIN = FigureEight(np.array([-10,0,50]), 50, 30)
+FIGURE_EIGHT_TEST = FigureEight(np.array([0,5,60]), 40, 40)
+FIGURE_EIGHT_VAL = FigureEight(np.array([0,0,55]), 30, 50)
+
+HYPERBOLIC_PARABOLOID_TRAIN = HyperbolicParaboloid(np.array([10,0,50]), 38, 35, 0.01)
+HYPERBOLIC_PARABOLOID_TEST = HyperbolicParaboloid(np.array([0,3,57]), 53, 27, 0.02)
+HYPERBOLIC_PARABOLOID_VAL = HyperbolicParaboloid(np.array([-2,0,45]), 60, 30, 0.005)

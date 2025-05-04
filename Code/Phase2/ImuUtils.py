@@ -312,53 +312,52 @@ def gyro_gen(fs, ref_w, gyro_err, vib_def=None):
     w_mea = ref_w + gyro_bias + gyro_bias_drift + gyro_noise + gyro_vib
     return w_mea
 
+# def run_acc_demo():
+#     fs = 100  # Hz
+#     num_samples = 1000
+#     ref_a = np.zeros((num_samples, 3))
 
-def run_acc_demo():
-    fs = 100  # Hz
-    num_samples = 1000
-    ref_a = np.zeros((num_samples, 3))
+#     data = []
+#     for i in range(1000):
+#         x = i +1
+#         y = i +2
+#         z = i + 3
+#         d = np.array([x, y, z])
+#         data.append(d)
 
-    data = []
-    for i in range(1000):
-        x = i +1
-        y = i +2
-        z = i + 3
-        d = np.array([x, y, z])
-        data.append(d)
+#     data = np.asarray(data)
 
-    data = np.asarray(data)
-
-    print(d)
-    print(d.shape)
-    print(data)
-    print(data.shape)
+#     print(d)
+#     print(d.shape)
+#     print(data)
+#     print(data.shape)
 
 
-    print(ref_a.shape)
-    acc_err = accel_high_accuracy
+#     print(ref_a.shape)
+#     acc_err = accel_high_accuracy
 
-    # sets random vibration to accel with RMS for x/y/z axis - 1/2/3 m/s^2, can be zero or changed to other values
-    env = '[0.03 0.001 0.01]-random'
-    vib_def = vib_from_env(env, fs)
+#     # sets random vibration to accel with RMS for x/y/z axis - 1/2/3 m/s^2, can be zero or changed to other values
+#     env = '[0.03 0.001 0.01]-random'
+#     vib_def = vib_from_env(env, fs)
 
-    real_acc = acc_gen(fs, ref_a, acc_err, vib_def)
+#     real_acc = acc_gen(fs, ref_a, acc_err, vib_def)
 
-    print(real_acc)
+#     print(real_acc)
 
-def run_gyro_demo():
-    fs = 100  # Hz
-    num_samples = 10
-    ref_w = np.zeros((num_samples, 3))
-    print(ref_w)
-    gyro_err = accel_high_accuracy
+# def run_gyro_demo():
+#     fs = 100  # Hz
+#     num_samples = 10
+#     ref_w = np.zeros((num_samples, 3))
+#     print(ref_w)
+#     gyro_err = accel_high_accuracy
 
-    # sets sinusoidal vibration to gyro with frequency being 0.5 Hz and amp for x/y/z axis being 6/5/4 deg/s
-    env = '[6 5 4]d-0.5Hz-sinusoidal'
-    vib_def = vib_from_env(env, fs)
+#     # sets sinusoidal vibration to gyro with frequency being 0.5 Hz and amp for x/y/z axis being 6/5/4 deg/s
+#     env = '[6 5 4]d-0.5Hz-sinusoidal'
+#     vib_def = vib_from_env(env, fs)
 
-    real_gyro = acc_gen(fs, ref_w, gyro_err, vib_def)
+#     real_gyro = acc_gen(fs, ref_w, gyro_err, vib_def)
 
-    print(real_gyro)
+#     print(real_gyro)
 
 
 def get_vel(p2, p1, dt):
@@ -524,5 +523,4 @@ def gyroscope_demo():
 if __name__ == "__main__":
     # pass
     # gyroscope_demo()
-    # accelerometer_demo()
-    run_acc_demo()
+    accelerometer_demo()

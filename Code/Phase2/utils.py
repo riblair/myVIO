@@ -2,15 +2,21 @@ import numpy as np
 import csv
 import matplotlib
 import math
+import ImuUtils
 # matplotlib.use('Agg')  # Use non-GUI backend
 # import matplotlib.pyplot as plt
 
 IMU_DT= 0.005 # 200Hz
 CAM_DT = 0.01 # 10Hz
-
-# quaternion representation: [x, y, z, w]
-# JPL convention
-
+# sets random vibration to accel with RMS for x/y/z axis - 1/2/3 m/s^2, can be zero or changed to other values
+FREQUENCY = 200
+ENV_ACC = '[0.03 0.001 0.01]-random'
+VIB_DEF_ACC = ImuUtils.vib_from_env(ENV_ACC, FREQUENCY)
+ERR_ACC = ImuUtils.accel_high_accuracy
+# sets sinusoidal vibration to gyro with frequency being 0.5 Hz and amp for x/y/z axis being 6/5/4 deg/s
+ENV_GYRO = '[6 5 4]d-0.5Hz-sinusoidal'
+VIB_DEF_GYRO = ImuUtils.vib_from_env(ENV_GYRO, FREQUENCY)
+ERR_GYRO = ImuUtils.gyro_high_accuracy
 
 def skew(vec):
     """

@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from Path import Path, STRAIGHT_LINE, SINUSOID, CIRCLE, FIGURE_EIGHT, HYPERBOLIC_PARABOLOID
+from Path import Path
 import utils as util
 
 class PathGrapher:

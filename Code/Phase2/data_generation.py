@@ -15,25 +15,32 @@
 import csv
 import random
 import numpy as np
-import Path
+from Path import *
 from PathGrapher import PathGrapher
 import utils as util
 import ImuUtils
 import argparse
 import os
-from Path import *
-from PathGrapher import PathGrapher
-from utils import IMU_DT, euler_from_quat
-from ImuUtils import *
+from image_data_generation import generate_image_data
 
 def env_setup():
     Parser = argparse.ArgumentParser()
-    Parser.add_argument("--Outputs", default="Code/Phase2/Data", type=str, help="Parent Directory for data files. Default:'Code/Phase2/Data/'")
-    Parser.add_argument("--Path", default="straight_line", type=str, help="Which path object to use. ['straight_line', 'circle', 'sinusoid', 'figure_eight', 'hyperbolic_paraboloid']")
+    Parser.add_argument("--Outputs", default="Code/Phase2/Data/", type=str, help="Parent Directory for data files. Default:'Code/Phase2/Data/'")
+    Parser.add_argument("--Path", default="Straight_Line", type=str, help="Which path object to use. ['Straight_Line', 'Circle', 'Sinusoid', 'Figure_Eight', 'Hyperbolic_Paraboloid']")
     Args = Parser.parse_args()
 
-    os.makedirs(Args.Outputs, exist_ok=True)
-    os.makedirs(Args.Outputs+"Images/", exist_ok=True)
+    if Args.Path not in ACCEPTABLE_PATHS:
+        print(f"[ERROR] Wrong type given for '--Path' param. Expected one of {ACCEPTABLE_PATHS}, given {args.Path}")
+        exit(1)
+
+    final_out = Args.Outputs+Args.Path+"/"
+    os.makedirs(final_out,                  exist_ok=True)
+    os.makedirs(final_out+"Train/",         exist_ok=True)
+    os.makedirs(final_out+"Train/Images/",  exist_ok=True)
+    os.makedirs(final_out+"Test/",          exist_ok=True)
+    os.makedirs(final_out+"Test/Images/",   exist_ok=True)
+    os.makedirs(final_out+"Val/",           exist_ok=True)
+    os.makedirs(final_out+"Val/Images/",    exist_ok=True)
     return Args
 
 def generate_random_path():
@@ -90,107 +97,87 @@ def generate_random_path():
             )
     return path
     
-
-def generate_ground_truth(path: Path, file_idx:int, mode='train'):
-    times = np.linspace(0, path.t_f, num=int(path.t_f/IMU_DT)) 
-    if mode == 'train':
-        filepath = f'Code/Phase2/groundtruth/train/traj_{file_idx}.csv'
-    elif mode == 'val':
-        filepath = f'Code/Phase2/groundtruth/val/traj_{file_idx}.csv'
-    elif mode == 'test':
-        filepath = f'Code/Phase2/groundtruth/test/traj_{file_idx}.csv'
+def generate_ground_truth(directory:str, times: np.ndarray, positions: np.ndarray, quaternions: np.ndarray):
+    filepath = f'{directory}path.csv'
     with open(filepath, 'w', newline='') as file:
         writer = csv.writer(file)
-        for t in times:
-            position = path.get_position(t)  # x, y, z
-            orientation = path.get_orientation(t)  # qx, qy, qz, qw
+        data = np.vstack((positions[:, 0], positions[:, 1], positions[:, 2], quaternions[:, 0], quaternions[:, 1], quaternions[:, 2], quaternions[:, 3]))
+        writer.writerows(data.T)
 
-            # Can add images to this
-            row_data = [position[0], position[1], position[2],
-                        orientation[0], orientation[1], orientation[2], orientation[3]]
-            writer.writerow(row_data)
+def generate_data(directory:str, times: np.ndarray, positions: np.ndarray, euler_angles: np.ndarray):
 
-
-# def generate_training_data(path: Path):
-#     times = np.linspace(0, path.t_f, num=int(path.t_f/util.IMU_DT)) 
-#     filepath = f'Code/Phase2/Data/traj_{path.name}.csv'
-def generate_data(path: Path, file_idx:int, mode='train'):
-    times = np.linspace(0, path.t_f, num=int(path.t_f/IMU_DT)) 
-    if mode == 'train':
-        filepath = f'Code/Phase2/data/train/traj_{file_idx}.csv'
-    elif mode == 'val':
-        filepath = f'Code/Phase2/data/val/traj_{file_idx}.csv'
-    elif mode == 'test':
-        filepath = f'Code/Phase2/data/test/traj_{file_idx}.csv'
+    filepath = f'{directory}path.csv'
     with open(filepath, 'w', newline='') as file:
         writer = csv.writer(file)
-        pg = PathGrapher(path)
-        times, positions, orientations = pg._generate_ground_truth('euler')
-        accel_data = ImuUtils.cal_linear_acc(positions[:, 0], positions[:, 1], positions[:, 2], imu_rate=1.0/util.IMU_DT)
-        gyro_data = ImuUtils.cal_angular_vel(orientations[:, 0], orientations[:, 1], orientations[:, 2], imu_rate=1.0/util.IMU_DT)
+        accel_data_gt = ImuUtils.cal_linear_acc(positions[:, 0], positions[:, 1], positions[:, 2], imu_rate=1.0/util.IMU_DT)
+        gyro_data_gt = ImuUtils.cal_angular_vel(euler_angles[:, 0], euler_angles[:, 1], euler_angles[:, 2], imu_rate=1.0/util.IMU_DT)
 
-        acc_err = accel_high_accuracy
-
-        # sets random vibration to accel with RMS for x/y/z axis - 1/2/3 m/s^2, can be zero or changed to other values
-        fs = 200
-        num_samples = accel_data.shape[0]
-        ref = np.zeros((num_samples, 3))
-        env = '[0.03 0.001 0.01]-random'
-        vib_def = vib_from_env(env, fs)
-
-        real_acc = acc_gen(fs, ref, acc_err, vib_def)
-        accel_data = accel_data + real_acc
-        accel_data = np.vstack([np.zeros((2,3)), accel_data])
+        real_acc = ImuUtils.acc_gen(util.FREQUENCY, accel_data_gt, util.ERR_ACC, util.VIB_DEF_ACC)
+        accel_data = np.vstack([np.zeros((2,3)), real_acc])
         
-        gyro_err = accel_high_accuracy
+        real_gyro = ImuUtils.gyro_gen(util.FREQUENCY, gyro_data_gt, util.ERR_GYRO, util.VIB_DEF_GYRO)
+        gyro_data = np.vstack([np.zeros((1,3)), real_gyro])
 
-        # sets sinusoidal vibration to gyro with frequency being 0.5 Hz and amp for x/y/z axis being 6/5/4 deg/s
-        env = '[6 5 4]d-0.5Hz-sinusoidal'
-        num_samples = gyro_data.shape[0]
-        ref = np.zeros((num_samples, 3))
-        vib_def = vib_from_env(env, fs)
-
-        real_gyro = acc_gen(fs, ref, gyro_err, vib_def)
-        gyro_data = gyro_data + real_gyro
-        gyro_data = np.vstack([np.zeros((1,3)), gyro_data])
-
-        im_names = [f"Code/Phase2/Data/Images/traj_{path.name}_{(i):05}.png" for i in range(len(times))]
+        im_names = [f"{directory}Images/im_{(i):05}.png" for i in range(len(times))]
 
         data = np.vstack((accel_data[:, 0], accel_data[:, 1], accel_data[:, 2], gyro_data[:, 0], gyro_data[:, 1], gyro_data[:, 2], im_names[:]))
         writer.writerows(data.T)
 
+def generate_everything(args):
+    if args.Path == "Straight_Line":
+        path_train = STRAIGHT_LINE_TRAIN
+        path_test  = STRAIGHT_LINE_TEST
+        path_val   = STRAIGHT_LINE_VAL
+    elif args.Path == 'Circle':
+        path_train = CIRCLE_TRAIN
+        path_test  = CIRCLE_TEST
+        path_val   = CIRCLE_VAL
+    elif args.Path == 'Sinusoid':
+        path_train = SINUSOID_TRAIN
+        path_test  = SINUSOID_TEST
+        path_val   = SINUSOID_VAL
+    elif args.Path == 'Figure_Eight':
+        path_train = FIGURE_EIGHT_TRAIN
+        path_test  = FIGURE_EIGHT_TEST
+        path_val   = FIGURE_EIGHT_VAL
+    elif args.Path == 'Hyperbolic_Paraboloid':
+        path_train = HYPERBOLIC_PARABOLOID_TRAIN
+        path_test  = HYPERBOLIC_PARABOLOID_TEST
+        path_val   = HYPERBOLIC_PARABOLOID_VAL
+    else:
+        print(f"[ERROR] Wrong type given for '--Path' param. Expected ['straight_line', 'circle', 'sinusoid', 'figure_eight', 'hyperbolic_paraboloid'], given {args.Path}")
+        exit(1)
+    
+    times, positions_train, quaternions_train = PathGrapher(path_train)._generate_ground_truth()
+    euler_train = np.array([util.euler_from_quat(orientation) for orientation in quaternions_train])
+    dir_train = args.Outputs+args.Path+"/Train/"
 
-def generate_everything(num_total_files: int):
-    num_train_files = int(num_total_files * 0.6)
-    num_val_files = int(num_total_files * 0.2)
-    num_test_files = int(num_total_files * 0.2)
-    for i in range(num_train_files):
-        path = generate_random_path()
-        mode = 'train'
-        generate_data(path, i, mode=mode)
-        generate_ground_truth(path, i, mode=mode)
-        hyperparam_filepath = f'Code/Phase2/path_hyperparameters/{mode}/traj_{i}.yaml'
-        path.export_hyperparameters(hyperparam_filepath)
+    __, positions_test, quaternions_test = PathGrapher(path_test)._generate_ground_truth()
+    euler_test = np.array([util.euler_from_quat(orientation) for orientation in quaternions_test])
+    dir_test = args.Outputs+args.Path+"/Test/"
 
-    for i in range(num_val_files):
-        path = generate_random_path()
-        mode = 'val'
-        generate_data(path, i, mode=mode)
-        generate_ground_truth(path, i, mode=mode)
-        hyperparam_filepath = f'Code/Phase2/path_hyperparameters/{mode}/traj_{i}.yaml'
-        path.export_hyperparameters(hyperparam_filepath)
+    __, positions_val, quaternions_val = PathGrapher(path_val)._generate_ground_truth()
+    euler_val = np.array([util.euler_from_quat(orientation) for orientation in quaternions_val])
+    dir_val = args.Outputs+args.Path+"/Val/"
 
-    for i in range(num_test_files):
-        path = generate_random_path()
-        mode = 'test'
-        generate_data(path, i, mode=mode)
-        generate_ground_truth(path, i, mode=mode)
-        hyperparam_filepath = f'Code/Phase2/path_hyperparameters/{mode}/traj_{i}.yaml'
-        path.export_hyperparameters(hyperparam_filepath)
-    return
+    generate_data(dir_train, times, positions_train, euler_train)
+    generate_ground_truth(dir_train, times, positions_train, quaternions_train)
+    generate_image_data(dir_train, times, positions_train, euler_train)
+    hyperparam_filepath = f'{dir_train}metadata.yaml'
+    path_train.export_hyperparameters(hyperparam_filepath)
+
+    generate_data(dir_test, times, positions_test, euler_test)
+    generate_ground_truth(dir_test, times, positions_test, quaternions_test)
+    generate_image_data(dir_test, times, positions_test, euler_test)
+    hyperparam_filepath = f'{dir_test}metadata.yaml'
+    path_test.export_hyperparameters(hyperparam_filepath)
+
+    generate_data(dir_val, times, positions_val, euler_val)
+    generate_ground_truth(dir_val, times, positions_val, quaternions_val)
+    generate_image_data(dir_val, times, positions_val, euler_val)
+    hyperparam_filepath = f'{dir_val}metadata.yaml'
+    path_val.export_hyperparameters(hyperparam_filepath)
 
 if __name__ == '__main__':
-    generate_everything(num_total_files=20)
-
-# generate_ground_truth(Circle(center=np.array([0,0,0]), diameter=10.0))
-# generate_data(Circle(center = np.array([0, 0, 0]), diameter=10.0), mode='train')
+    args = env_setup()
+    generate_everything(args)
