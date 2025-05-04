@@ -20,8 +20,12 @@ class Path(ABC):
     
     def get_orientation(self, time) -> np.ndarray:
         # Get the angle from the direction vector
-        pose_1 = self.get_position(max(time-util.IMU_DT, 0))
-        pose_2 = self.get_position(time)
+        if time == 0:
+            pose_1 = self.get_position(0)
+            pose_2 = self.get_position(util.IMU_DT)
+        else:
+            pose_1 = self.get_position(time-util.IMU_DT)
+            pose_2 = self.get_position(time)
         direction_vector = pose_2-pose_1
         dir_norm = np.linalg.norm(direction_vector)
         if dir_norm > 1e-10 : dir_normalized = direction_vector / dir_norm

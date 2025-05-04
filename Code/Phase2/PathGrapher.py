@@ -14,11 +14,18 @@ class PathGrapher:
         ...
         return ...
 
-    def _generate_ground_truth(self):
+    def _generate_ground_truth(self, o_type: str = "quat"):
         times = np.linspace(0, self.ground_truth.t_f, num=int(self.ground_truth.t_f/util.IMU_DT))
         positions = np.array([self.ground_truth.get_position(t) for t in times])
         orientations = np.array([self.ground_truth.get_orientation(t) for t in times])
-        return times, positions, orientations
+        if o_type.lower() == "quat":
+            f_orientations = orientations
+        elif o_type.lower() == "euler":
+            f_orientations = np.array([util.euler_from_quat(orientation) for orientation in orientations])
+        else:
+            print(f"[ERROR] Wrong type given for _generate_ground_truth. Expected ['quat', 'euler'], given {o_type}")
+            exit(1)
+        return times, positions, f_orientations
 
     def generate_xy_plot(self, show_now: bool = False):
         times, gt_positions, orientations = self._generate_ground_truth()
@@ -72,15 +79,14 @@ class PathGrapher:
         if show_now: plt.show()
 
     def generate_orientation_plots(self, show_now: bool = False):
-        times, gt_positions, orientations = self._generate_ground_truth()
-        euler_orientations = np.array([util.euler_from_quat(orientation) for orientation in orientations])
+        times, gt_positions, orientations = self._generate_ground_truth('euler')
         if self.estim is not None: est_positions = np.array([self.estim[t][:3] for t in times])
         
         fig, axs = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
         labels = ['Roll', 'Pitch', 'Yaw']
         
         for i in range(3):
-            axs[i].plot(times, euler_orientations[:, i], label=f'GT {labels[i]}')
+            axs[i].plot(times, orientations[:, i], label=f'GT {labels[i]}')
             axs[i].set_ylabel(f'{labels[i]} (rad)')
             axs[i].legend()
             axs[i].grid(True)
