@@ -26,3 +26,17 @@
         * Load model, run it through out-of-dataset trajectory, generate txt file
         * Generate graphs
 """
+
+
+
+"""Ground-truth csv file - x, y, z, q_x, q_y, q_z, q_w"""
+"Relative pose"
+
+"""difference is q2 * -q1 
+
+                    * conjugate of q1 / norm of q1"""
+
+"""Data file - acc_x, acc_y, acc_z, gyro_phi, gyro_theta, gyro_psi, im_filename"""
+
+
+
