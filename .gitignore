@@ -3,11 +3,19 @@ pangolin/
 data/*
 __pycache__
 venv/
+Code/Phase2/data/
+Code/Phase2/groundtruth/
+Code/Phase2/checkpoints/
+Code/Phase2/path_hyperparameters/
 video.mp4
 Code/Phase2/Data/*
 stamped_groundtruth.txt
 measured_data.txt
 Output.mp4
 data_creater.py
+<<<<<<< HEAD
 **.zip
 videos/**
+=======
+
+>>>>>>> 297ebda (added testing for io model)

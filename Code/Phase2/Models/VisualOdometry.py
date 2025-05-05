@@ -1,14 +1,14 @@
 import torch
 import torch.nn as nn
 import numpy as np
-from utils import *
+import Models.utils as utils
 
 class VisualOdometry(nn.Module):
     def __init__(self, in_channels=6, hidden_size=128, output_size=6, concat=False):
         super().__init__(VisualOdometry, self)
         self.fnet = nn.Sequential(
-            BasicConvEncoder(output_dim=256, norm_fn='instance', dropout=dropout),
-            POLAUpdate(embed_dim=256, depth=6, num_head=8, window_size=7, neig_win_num=1)
+            utils.BasicConvEncoder(output_dim=256, norm_fn='instance', dropout=dropout),
+            utils.POLAUpdate(embed_dim=256, depth=6, num_head=8, window_size=7, neig_win_num=1)
         )
         self.conv1_position = nn.Conv2d(512, 16, kernel_size=1)
         self.conv1_orientation = nn.Conv2d(512, 16, kernel_size=1)
@@ -62,8 +62,9 @@ class VisualOdometry(nn.Module):
         orient_hat = torch.nn.functional.normalize(orient_hat, p=2, dim=1)
         orient = torch.nn.functional.normalize(orient, p=2, dim=1)
         
-        pos_loss = nn.L1Loss(pos_hat, pos)
-        orient_loss = geodesic_loss(quaternion_to_matrix(orient_hat), quaternion_to_matrix(orient))
+        loss_fn = nn.L1Loss()
+        pos_loss = loss_fn(pos_hat, pos)
+        orient_loss = utils.geodesic_loss(utils.quaternion_to_matrix(orient_hat), utils.quaternion_to_matrix(orient), reduction='mean')
         
         return pos_loss + orient_loss
     

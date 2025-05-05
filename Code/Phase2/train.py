@@ -22,11 +22,11 @@ def generate_IO_batch(batch_size: int, train=True):
     for _, _, files in os.walk(directory_filepath):
         num_trajectories += len(files)
     traj_idx = random.randint(1, num_trajectories-1)
+    # traj_idx = 1
     data_filepath = directory_filepath + f'/traj_{traj_idx}.csv'
     gt_filepath = f'Code/Phase2/groundtruth/train/traj_{traj_idx}.csv' if train else f'Code/Phase2/groundtruth/val/traj_{traj_idx}.csv'
     with open(data_filepath, "r") as file:
         reader = csv.reader(file)
-        # lines = file.readlines()
         rows =[r for r in reader]
     with open(gt_filepath, "r") as file:
         reader = csv.reader(file)
@@ -127,10 +127,11 @@ def main(args):
         raise ValueError(f"Unknown odometry mode. Expected 'IO', 'VO', or 'VIO'. Instead got {args.mode}")
     
     start_epoch = 0
-    save_checkpoint = 25
+    save_rate = 20
     
     for epoch in range(start_epoch, epochs):
         num_iterations_per_epoch = 100
+        epoch_loss = 0
         for per_epoch_counter in range(num_iterations_per_epoch):
             if args.mode == 'IO':
                 batch, ground_truth = generate_IO_batch(batch_size)
@@ -140,43 +141,66 @@ def main(args):
                 batch = generate_VIO_batch(batch_size)
             
             estimated_pose = model(batch)
-            trainging_loss = model.loss(ground_truth, estimated_pose) # TODO: Read ground truth and import estimated pose
+            training_loss = model.loss(ground_truth, estimated_pose) # TODO: Read ground truth and import estimated pose
+            print(training_loss)
+            epoch_loss += training_loss
             optimizer.zero_grad()
-            trainging_loss.backward()
+            training_loss.backward()
             optimizer.step()
+        print(f"EPOCH LOSS: {epoch_loss}")
+        print()
             
             # Save checkpoint every some SaveCheckPoint's iterations
-            if per_epoch_counter % save_checkpoint == 0:
-                # Save the Model learnt in this epoch
-                SaveName = (
-                    "Code/Phase2/checkpoints/"
-                    + str(epoch)
-                    + "a"
-                    + str(per_epoch_counter)
-                    + "model.ckpt"
-                )
+            # if per_epoch_counter % save_checkpoint == 0:
+            #     # Save the Model learnt in this epoch
+            #     SaveName = (
+            #         "Code/Phase2/checkpoints/"
+            #         + str(epoch)
+            #         + "a"
+            #         + str(per_epoch_counter)
+            #         + "model.ckpt"
+            #     )
 
-                torch.save(
-                    {
-                        "epoch": epoch,
-                        "model_state_dict": model.state_dict(),
-                        "optimizer_state_dict": optimizer.state_dict(),
-                        "loss": trainging_loss,
-                    },
-                    SaveName,
-                )
-                print("\n" + SaveName + " Model Saved...")
+            #     torch.save(
+            #         {
+            #             "epoch": epoch,
+            #             "model_state_dict": model.state_dict(),
+            #             "optimizer_state_dict": optimizer.state_dict(),
+            #             "loss": trainging_loss,
+            #         },
+            #         SaveName,
+            #     )
+            #     print("\n" + SaveName + " Model Saved...")
                 
-        with torch.no_grad():
-            if args.mode == 'IO':
-                batch, ground_truth = generate_IO_batch(batch_size, train=False)
-            elif args.mode == 'VO':
-                batch = generate_VO_batch(batch_size)
-            elif args.mode == 'VIO':
-                batch = generate_VIO_batch(batch_size)
-            val_pose = model(batch)
-            loss = model.loss(ground_truth, val_pose)
-        print(f"Validation Loss: {loss}, Training Loss: {trainging_loss}")
+        # with torch.no_grad():
+        #     if args.mode == 'IO':
+        #         batch, ground_truth = generate_IO_batch(batch_size, train=False)
+        #     elif args.mode == 'VO':
+        #         batch = generate_VO_batch(batch_size)
+        #     elif args.mode == 'VIO':
+        #         batch = generate_VIO_batch(batch_size)
+        #     val_pose = model(batch)
+        #     loss = model.loss(ground_truth, val_pose)
+        # print(f"Validation Loss: {loss}, Training Loss: {trainging_loss}")
+        if epoch % save_rate == 0:
+            SaveName = (
+                        "Code/Phase2/checkpoints/"
+                        + str(epoch)
+                        + "a"
+                        + str(per_epoch_counter)
+                        + "model.ckpt"
+                    )
+
+            torch.save(
+                {
+                    "epoch": epoch,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "loss": training_loss,
+                },
+                SaveName,
+            )
+            print("\n" + SaveName + " Model Saved...")
             
 
 if __name__ == '__main__':
