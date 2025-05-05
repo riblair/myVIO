@@ -19,7 +19,7 @@ def main():
     model.load_state_dict(checkpoint["model_state_dict"])
     
     # Import IMU state to test
-    imu_state_filepath = 'Code/Phase2/data/test/traj_0.csv'
+    imu_state_filepath = 'Code/Phase2/Data/Test/traj_0.csv'
     # send states though model in groups of 10
     with open(imu_state_filepath, "r") as imu_file:
         reader = csv.reader(imu_file)
