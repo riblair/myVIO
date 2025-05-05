@@ -7,7 +7,7 @@ import ImuUtils
 # import matplotlib.pyplot as plt
 
 IMU_DT= 0.005 # 200Hz
-CAM_DT = 0.01 # 10Hz
+CAM_DT = 0.05 # 10Hz
 # sets random vibration to accel with RMS for x/y/z axis - 1/2/3 m/s^2, can be zero or changed to other values
 FREQUENCY = 200
 ENV_ACC = '[0.03 0.001 0.01]-random'
@@ -193,7 +193,6 @@ def euler_from_quat(q):
     q_x_z = q[0]*q[2]
 
     q_y_z = q[1]*q[2]
-
     phi = math.atan2(2*(q_w_x+q_y_z), 1 - 2*(q[0]**2 + q[1]**2))
     theta = -math.pi/2 + 2 * math.atan2(math.sqrt(1+2*(q_w_y - q_x_z)), math.sqrt(1 - 2*(q_w_y + q_x_z)))
     psi = math.atan2(2*(q_w_z+q_x_y), 1 - 2*(q[1]**2 + q[2]**2))

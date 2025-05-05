@@ -13,7 +13,7 @@ from Models.VisualOdometry import VisualOdometry as VO
 from Models.VisualInertialOdometry import VisualInertialOdometry as VIO
 
 def main():
-    checkpoint_filepath = 'Code/Phase2/checkpoints/180a99model.ckpt' #path to checkpoint
+    checkpoint_filepath = 'Code/Phase2/Checkpoints/sin_0a99model.ckpt' #path to checkpoint
     model = IO()
     checkpoint = torch.load(checkpoint_filepath)
     model.load_state_dict(checkpoint["model_state_dict"])

@@ -1,18 +1,32 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from Path import Path, SINUSOID_TRAIN
+from Path import Path, SINUSOID_TRAIN, SINUSOID_TEST
 import utils as util
 
 class PathGrapher:
     def __init__(self, gt: Path, estim_file: str = None):
         self.ground_truth = gt
-        self.estim = self._load_estimated_path(estim_file)
+        self.estim = estim_file
 
-    def _load_estimated_path(self, estim_file):
-        if estim_file is None: return None
-        times = np.linspace(0, self.ground_truth.t_f, num=int(self.ground_truth.t_f/util.IMU_DT))
-        ...
-        return ...
+    def _load_estimated_path(self):
+        positions = []
+        orientations = []
+        times = []
+
+        with open(self.estim, 'r') as f:
+            lines = f.readlines()
+            for i, line in enumerate(lines):
+                parts = line.strip().split(',')
+                if len(parts) != 7:
+                    print(f"[WARNING] Skipping malformed line {i}: {line.strip()}")
+                    continue
+
+                # Parse values
+                x, y, z, qx, qy, qz, qw = map(float, parts)
+                positions.append([x, y, z])
+                orientations.append([qx, qy, qz, qw])
+        times = np.linspace(0, self.ground_truth.t_f, num=(int(self.ground_truth.t_f/util.CAM_DT)-1))
+        return times, np.array(positions), np.array(orientations)
 
     def _generate_ground_truth(self, o_type: str = "quat"):
         times = np.linspace(0, self.ground_truth.t_f, num=int(self.ground_truth.t_f/util.IMU_DT))
@@ -29,7 +43,8 @@ class PathGrapher:
 
     def generate_xy_plot(self, show_now: bool = False):
         times, gt_positions, orientations = self._generate_ground_truth()
-        if self.estim is not None: est_positions = np.array([self.estim[t][:3] for t in times])
+        if self.estim is not None: 
+            ___, est_positions, ___ = self._load_estimated_path()
 
         plt.figure()
         plt.plot(gt_positions[:, 0], gt_positions[:, 1], label='Ground Truth')
@@ -45,7 +60,8 @@ class PathGrapher:
 
     def generate_xz_plot(self, show_now: bool = False):
         times, gt_positions, orientations = self._generate_ground_truth()
-        if self.estim is not None: est_positions = np.array([self.estim[t][:3] for t in times])
+        if self.estim is not None: 
+            ___, est_positions, ___ = self._load_estimated_path()
 
         plt.figure()
         plt.plot(gt_positions[:, 0], gt_positions[:, 2], label='Ground Truth')
@@ -61,12 +77,13 @@ class PathGrapher:
 
     def generate_3d_plot(self, show_now: bool = False):
         times, gt_positions, orientations = self._generate_ground_truth()
-        if self.estim is not None: est_positions = np.array([self.estim[t][:3] for t in times])
+        if self.estim is not None: 
+            e_times, est_positions, ___ = self._load_estimated_path()
 
         fig = plt.figure()
         ax = fig.add_subplot(projection='3d')
         ax.plot(gt_positions[:, 0], gt_positions[:, 1], gt_positions[:, 2], label='Ground Truth')
-        if self.estim is not None: ax.plot(est_positions[:, 0], gt_positions[:, 1], est_positions[:, 2], label='Estimated', linestyle='--')
+        if self.estim is not None: ax.plot(est_positions[:, 0], est_positions[:, 1], est_positions[:, 2], label='Estimated', linestyle='--')
         ax.set_xlabel('X')
         ax.set_xlim([-50,50])
         ax.set_ylabel('Y')
@@ -80,13 +97,16 @@ class PathGrapher:
 
     def generate_orientation_plots(self, show_now: bool = False):
         times, gt_positions, orientations = self._generate_ground_truth('euler')
-        if self.estim is not None: est_positions = np.array([self.estim[t][:3] for t in times])
+        if self.estim is not None: 
+            ___, est_positions, est_orientations = self._load_estimated_path()
+        est_orientations = np.array([util.euler_from_quat(orientation) for orientation in est_orientations])
         
         fig, axs = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
         labels = ['Roll', 'Pitch', 'Yaw']
         
         for i in range(3):
             axs[i].plot(times, orientations[:, i], label=f'GT {labels[i]}')
+            axs[i].plot(times, est_orientations[:, i], label=f'Estim {labels[i]}')
             axs[i].set_ylabel(f'{labels[i]} (rad)')
             axs[i].legend()
             axs[i].grid(True)
@@ -99,18 +119,22 @@ class PathGrapher:
     def generate_plots(self):
         self.generate_xy_plot()
         self.generate_xz_plot()
-        self.generate_3d_plot(False)
-        self.generate_orientation_plots(True)
+        self.generate_3d_plot(True)
+        # self.generate_orientation_plots(True)
 
 
 if __name__ == '__main__':
-    path_list = []
-    # path_list.append(PathGrapher(STRAIGHT_LINE))
-    # path_list.append(PathGrapher(CIRCLE))
-    path_list.append(PathGrapher(SINUSOID_TRAIN))
-    # path_list.append(PathGrapher(FIGURE_EIGHT))
-    # path_list.append(PathGrapher(HYPERBOLIC_PARABOLOID))
+    # path_list = []
+    # # path_list.append(PathGrapher(STRAIGHT_LINE))
+    # # path_list.append(PathGrapher(CIRCLE))
+    # # path_list.append(PathGrapher(SINUSOID_TRAIN))
+    # # path_list.append(PathGrapher(FIGURE_EIGHT))
+    # # path_list.append(PathGrapher(HYPERBOLIC_PARABOLOID))
+
+    pg = PathGrapher(SINUSOID_TEST, "final_trajectory.csv")
+
+    pg.generate_plots()
     
-    for pg in path_list:
-        pg.generate_plots()
-    plt.show()
+    # for pg in path_list:
+    #     pg.generate_plots()
+    # plt.show()
