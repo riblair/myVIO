@@ -13,13 +13,13 @@ from Models.VisualOdometry import VisualOdometry as VO
 from Models.VisualInertialOdometry import VisualInertialOdometry as VIO
 
 def main():
-    checkpoint_filepath = 'Code/Phase2/Checkpoints/sin_0a99model.ckpt' #path to checkpoint
+    checkpoint_filepath = 'Code/Phase2/Checkpoints/straight_line.ckpt' #path to checkpoint
     model = IO()
     checkpoint = torch.load(checkpoint_filepath)
     model.load_state_dict(checkpoint["model_state_dict"])
     
     # Import IMU state to test
-    imu_state_filepath = 'Code/Phase2/Data/Test/traj_0.csv'
+    imu_state_filepath = 'Code/Phase2/Data/Straight_Line/Test/path.csv'
     # send states though model in groups of 10
     with open(imu_state_filepath, "r") as imu_file:
         reader = csv.reader(imu_file)

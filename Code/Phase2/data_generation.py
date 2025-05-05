@@ -26,7 +26,7 @@ from image_data_generation import generate_image_data
 def env_setup():
     Parser = argparse.ArgumentParser()
     Parser.add_argument("--Outputs", default="Code/Phase2/Data/", type=str, help="Parent Directory for data files. Default:'Code/Phase2/Data/'")
-    Parser.add_argument("--Path", default="Straight_Line", type=str, help="Which path object to use. ['Straight_Line', 'Circle', 'Sinusoid', 'Figure_Eight', 'Hyperbolic_Paraboloid']")
+    Parser.add_argument("--Path", default="Circle", type=str, help="Which path object to use. ['Straight_Line', 'Circle', 'Sinusoid', 'Figure_Eight', 'Hyperbolic_Paraboloid']")
     Args = Parser.parse_args()
 
     if Args.Path not in ACCEPTABLE_PATHS:
@@ -168,13 +168,13 @@ def generate_everything(args):
 
     generate_data(dir_test, times, positions_test, euler_test)
     generate_ground_truth(dir_test, times, positions_test, quaternions_test)
-    generate_image_data(dir_test, times, positions_test, euler_test)
+    # generate_image_data(dir_test, times, positions_test, euler_test)
     hyperparam_filepath = f'{dir_test}metadata.yaml'
     path_test.export_hyperparameters(hyperparam_filepath)
 
     generate_data(dir_val, times, positions_val, euler_val)
     generate_ground_truth(dir_val, times, positions_val, quaternions_val)
-    generate_image_data(dir_val, times, positions_val, euler_val)
+    # generate_image_data(dir_val, times, positions_val, euler_val)
     hyperparam_filepath = f'{dir_val}metadata.yaml'
     path_val.export_hyperparameters(hyperparam_filepath)
 
