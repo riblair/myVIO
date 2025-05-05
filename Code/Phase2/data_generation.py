@@ -30,7 +30,7 @@ def env_setup():
     Args = Parser.parse_args()
 
     if Args.Path not in ACCEPTABLE_PATHS:
-        print(f"[ERROR] Wrong type given for '--Path' param. Expected one of {ACCEPTABLE_PATHS}, given {args.Path}")
+        print(f"[ERROR] Wrong type given for '--Path' param. Expected one of {ACCEPTABLE_PATHS}, given {Args.Path}")
         exit(1)
 
     final_out = Args.Outputs+Args.Path+"/"

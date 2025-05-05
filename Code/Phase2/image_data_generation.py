@@ -47,11 +47,12 @@ def setup_scene():
     links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
     plane.data.materials.append(mat)
     bpy.ops.object.light_add(type='SUN', location=(0, 0, 10))
-    # bpy.context.scene.render.engine = 'BLENDER_EEVEE'
-    print(bpy.context.scene.render.engine)
-    devnull = os.open(os.devnull, os.O_WRONLY)
-    os.dup2(devnull, 1)  # Redirect stdout (fd 1)
-    os.dup2(devnull, 2)
+    # UNCOMMENT IF YOU WANT TO REMOVE CONSOLE PRINTING
+    # devnull = os.open(os.devnull, os.O_WRONLY) 
+    # os.dup2(devnull, 1)  # Redirect stdout (fd 1)
+    # os.dup2(devnull, 2)
+    # Blender on the cluster required BLENDER_EVEE_NEXT, uncomment if running on cluster.
+    # bpy.context.scene.render.engine = 'BLENDER_EEVEE_NEXT'
     return scene
 
 def render_scene(scene, file_path):
