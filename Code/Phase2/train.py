@@ -12,17 +12,16 @@ from Models.InertialOdometry import InertialOdometry as IO
 from Models.VisualOdometry import VisualOdometry as VO
 from Models.VisualInertialOdometry import VisualInertialOdometry as VIO
 
+def save_epoch_loss_to_csv(epoch_loss: float, validation_loss: float):
+    with open("epoch_loss.csv", "a") as file:
+        writer = csv.writer(file)
+        writer.writerow([epoch_loss, validation_loss])
+
 def generate_IO_batch(batch_size: int, path_type:str, train=True):
     # Need to return (batchsize, 10, 6) set of imu data points
     batch = []
     ground_truth = []
-    csv_rows = []
-    num_trajectories = 0
     directory_filepath = f'Code/Phase2/Data/{path_type}/Train' if train else f'Code/Phase2/Data/{path_type}/Val'
-    for _, _, files in os.walk(directory_filepath):
-        num_trajectories += len(files)
-    traj_idx = random.randint(1, num_trajectories-1)
-    # traj_idx = 1
     data_filepath = directory_filepath + f'/path.csv'
     gt_filepath = directory_filepath + '/gt_data.csv'
     with open(data_filepath, "r") as file:
@@ -36,7 +35,6 @@ def generate_IO_batch(batch_size: int, path_type:str, train=True):
     for _ in range(batch_size):
         starting_idx = random.randint(0, num_data_rows-10)
         batch_element = []
-        csv_rows.append((starting_idx, starting_idx+10))
         for i in range(starting_idx, starting_idx+10):
             data_row = rows[i]
             batch_element.append(data_row[0:6])  # input row as a row, so batch is a 2d array
@@ -46,37 +44,35 @@ def generate_IO_batch(batch_size: int, path_type:str, train=True):
     ground_truth = np.array(ground_truth, dtype=np.float32)
     return torch.from_numpy(batch_np), torch.from_numpy(ground_truth)
 
-def generate_VO_batch(batch_size: int, train=True):
-    batch = []
+def generate_VO_batch(batch_size: int, path_type:str, train=True):
+    image1_batch = []
+    image2_batch = []
     ground_truth = []
     num_trajectories = 0
-    directory_filepath = 'Code/Phase2/Data/Train/Images' if train else 'Code/Phase2/Data/Val/Images'
+    directory_filepath = f'Code/Phase2/Data/{path_type}/Train/Images' if train else f'Code/Phase2/Data/{path_type}/Val/Images'
     for _, _, files in os.walk(directory_filepath):
         num_trajectories = len(files)
-    traj_idx = random.randint(1, num_trajectories)
-    for _, _, files in os.walk(directory_filepath):
-        num_trajectories += len(files)
-    traj_idx = random.randint(1, num_trajectories-1)
     
     gt_filepath = f'Code/Phase2/groundtruth/train/gt_data.csv' if train else f'Code/Phase2/groundtruth/val/gt_data.csv'
     with open(gt_filepath, "r") as file:
         reader = csv.reader(file)
         gt_rows = [r for r in reader]
     num_images = len([entry for entry in os.scandir(directory_filepath) if entry.is_file()])
-    batch_np = np.array(batch)
+    # batch_np = np.array(batch)
     for _ in range(batch_size):
-        starting_idx = random.randint(0, num_images-10)
+        starting_idx = random.randint(0, num_images-11)
         batch_element = []
         data_filepath = directory_filepath + f'/im_{starting_idx:05d}.png'
         image_1 = cv2.imread(data_filepath)
         data_filepath = directory_filepath + f'/im_{starting_idx+10:05d}.png'
         image_2 = cv2.imread(data_filepath)
-        image_stack = np.concat((image_1, image_2), axis=2)  # Stack along channel dimension
-        batch.append(image_stack)
+        # image_stack = np.concat((image_1, image_2), axis=2)  # Stack along channel dimension
+        image1_batch.append(image_1)
+        image2_batch.append(image_2)
         ground_truth.append(gt_rows[starting_idx])
-    batch_np = np.array(batch, dtype=np.float32)
+    # batch_np = np.array(batch, dtype=np.float32)
     ground_truth = np.array(ground_truth, dtype=np.float32)
-    return torch.from_numpy(batch_np), torch.from_numpy(ground_truth)
+    return np.array(image1_batch), np.array(image2_batch), torch.from_numpy(ground_truth)
     # return batch_np
 
 def generate_VIO_batch(batch_size):
@@ -143,7 +139,6 @@ def main(args):
     
     start_epoch = 0
     
-    
     for epoch in range(start_epoch, epochs):
         num_iterations_per_epoch = 100
         epoch_loss = 0
@@ -152,8 +147,8 @@ def main(args):
                 batch, ground_truth = generate_IO_batch(batch_size, path_type=args.path_type)
                 estimated_pose = model(batch)
             elif args.mode == 'VO':
-                batch, ground_truth = generate_VO_batch(batch_size)
-                estimated_pose = model(batch[:])
+                image1, image2, ground_truth = generate_VO_batch(batch_size, path_type=args.path_type)
+                estimated_pose = model(torch.from_numpy(image1), torch.from_numpy(image2))
             elif args.mode == 'VIO':
                 batch, ground_truth = generate_VIO_batch(batch_size)
             
@@ -164,8 +159,14 @@ def main(args):
             optimizer.zero_grad()
             training_loss.backward()
             optimizer.step()
+        
+        batch, ground_truth = generate_IO_batch(batch_size, args.path_type, train=False)
+        estimated_pose = model(batch)
+        validation_loss = model.loss(ground_truth, estimated_pose)
+        
                 
         print(f"EPOCH LOSS: {epoch_loss}")
+        save_epoch_loss_to_csv(epoch_loss.detach().item(), validation_loss.detach().item())
         print()
         if epoch % save_rate == 0:
             SaveName = (
@@ -196,6 +197,6 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=50, help='Number of epochs to train')
     parser.add_argument('--gpus', type=int, default=1, help='Number of GPUs')
     parser.add_argument('--fp16', action='store_true', help='Enable FP16 training')
-    parser.add_argument('--path_type', type=str, default='Straight_Line', choices=['Straight_Line', 'Circle', 'Sinusoid'])
+    parser.add_argument('--path_type', type=str, default='Circle', choices=['Straight_Line', 'Circle', 'Sinusoid'])
     args = parser.parse_args()
     main(args)

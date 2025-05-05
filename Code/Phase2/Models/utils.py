@@ -282,8 +282,9 @@ class BasicConvEncoder(nn.Module):
         if is_list:
             batch_dim = x[0].shape[0]
             x = torch.cat(x, dim=0)
-
-        x = F.relu(self.norm1(self.conv1(x)), inplace=True)
+        x = self.conv1(x)
+        x = self.norm1(x),
+        x = F.relu(x, inplace=True)
         x = F.relu(self.norm2(self.conv2(x)), inplace=True)
         x = F.relu(self.norm3(self.conv3(x)), inplace=True)
 
