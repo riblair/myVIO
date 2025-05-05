@@ -4,10 +4,10 @@ import numpy as np
 import Models.utils as utils
 
 class VisualOdometry(nn.Module):
-    def __init__(self, in_channels=6, hidden_size=128, output_size=6, concat=False):
-        super().__init__(VisualOdometry, self)
+    def __init__(self):
+        super(VisualOdometry, self).__init__()
         self.fnet = nn.Sequential(
-            utils.BasicConvEncoder(output_dim=256, norm_fn='instance', dropout=dropout),
+            utils.BasicConvEncoder(output_dim=256, norm_fn='instance', dropout=0.5),
             utils.POLAUpdate(embed_dim=256, depth=6, num_head=8, window_size=7, neig_win_num=1)
         )
         self.conv1_position = nn.Conv2d(512, 16, kernel_size=1)

@@ -12,19 +12,19 @@ from Models.InertialOdometry import InertialOdometry as IO
 from Models.VisualOdometry import VisualOdometry as VO
 from Models.VisualInertialOdometry import VisualInertialOdometry as VIO
 
-def generate_IO_batch(batch_size: int, train=True):
+def generate_IO_batch(batch_size: int, path_type:str, train=True):
     # Need to return (batchsize, 10, 6) set of imu data points
     batch = []
     ground_truth = []
     csv_rows = []
     num_trajectories = 0
-    directory_filepath = 'Code/Phase2/data/train' if train else 'Code/Phase2/data/val'
+    directory_filepath = f'Code/Phase2/Data/{path_type}/Train' if train else f'Code/Phase2/Data/{path_type}/Val'
     for _, _, files in os.walk(directory_filepath):
         num_trajectories += len(files)
     traj_idx = random.randint(1, num_trajectories-1)
     # traj_idx = 1
-    data_filepath = directory_filepath + f'/traj_{traj_idx}.csv'
-    gt_filepath = f'Code/Phase2/groundtruth/train/traj_{traj_idx}.csv' if train else f'Code/Phase2/groundtruth/val/traj_{traj_idx}.csv'
+    data_filepath = directory_filepath + f'/path.csv'
+    gt_filepath = directory_filepath + '/gt_data.csv'
     with open(data_filepath, "r") as file:
         reader = csv.reader(file)
         rows =[r for r in reader]
@@ -46,24 +46,38 @@ def generate_IO_batch(batch_size: int, train=True):
     ground_truth = np.array(ground_truth, dtype=np.float32)
     return torch.from_numpy(batch_np), torch.from_numpy(ground_truth)
 
-def generate_VO_batch(batch_size: int):
+def generate_VO_batch(batch_size: int, train=True):
     batch = []
+    ground_truth = []
     num_trajectories = 0
-    for _, _, files in os.walk('data'):
-        num_trajectories += len(files)
+    directory_filepath = 'Code/Phase2/Data/Train/Images' if train else 'Code/Phase2/Data/Val/Images'
+    for _, _, files in os.walk(directory_filepath):
+        num_trajectories = len(files)
     traj_idx = random.randint(1, num_trajectories)
-    data_filepath = f'data/traj_{traj_idx}.csv'
-    with open(data_filepath, "r") as file:
+    for _, _, files in os.walk(directory_filepath):
+        num_trajectories += len(files)
+    traj_idx = random.randint(1, num_trajectories-1)
+    
+    gt_filepath = f'Code/Phase2/groundtruth/train/gt_data.csv' if train else f'Code/Phase2/groundtruth/val/gt_data.csv'
+    with open(gt_filepath, "r") as file:
         reader = csv.reader(file)
-        num_rows = len(reader)
-        for _ in range(batch_size):
-            starting_idx = random.randint(0, num_rows-10)
-            # TODO: Update with image directory filepath
-            image_1 = cv2.imread(reader[starting_idx][-1])
-            image_2 = cv2.imread(reader[starting_idx+10][-1])
-            batch.append([image_1, image_2])
+        gt_rows = [r for r in reader]
+    num_images = len([entry for entry in os.scandir(directory_filepath) if entry.is_file()])
     batch_np = np.array(batch)
-    return batch_np
+    for _ in range(batch_size):
+        starting_idx = random.randint(0, num_images-10)
+        batch_element = []
+        data_filepath = directory_filepath + f'/im_{starting_idx:05d}.png'
+        image_1 = cv2.imread(data_filepath)
+        data_filepath = directory_filepath + f'/im_{starting_idx+10:05d}.png'
+        image_2 = cv2.imread(data_filepath)
+        image_stack = np.concat((image_1, image_2), axis=2)  # Stack along channel dimension
+        batch.append(image_stack)
+        ground_truth.append(gt_rows[starting_idx])
+    batch_np = np.array(batch, dtype=np.float32)
+    ground_truth = np.array(ground_truth, dtype=np.float32)
+    return torch.from_numpy(batch_np), torch.from_numpy(ground_truth)
+    # return batch_np
 
 def generate_VIO_batch(batch_size):
     image_batch = []
@@ -99,13 +113,14 @@ def main(args):
         optimizer = Adam(model.parameters(), lr=0.001)
         epochs = 200
         batch_size = 32
+        save_rate = 20
     elif args.mode == 'VO':
         model = VO()
+        optimizer = Adam(model.parameters(), lr=0.001)
         weights = torch.load("Code/Phase2/weights/gmflownet-kitti.pth", map_location='cpu')
         for key in weights.keys():
             if key.replace('module.', '') in model.state_dict().keys():
                 model.state_dict()[key.replace('module.', '')] = weights[key]
-        optimizer = Adam(lr=0.001)
         epochs = 50
         batch_size = 16
     elif args.mode == 'VIO':
@@ -127,64 +142,34 @@ def main(args):
         raise ValueError(f"Unknown odometry mode. Expected 'IO', 'VO', or 'VIO'. Instead got {args.mode}")
     
     start_epoch = 0
-    save_rate = 20
+    
     
     for epoch in range(start_epoch, epochs):
         num_iterations_per_epoch = 100
         epoch_loss = 0
         for per_epoch_counter in range(num_iterations_per_epoch):
             if args.mode == 'IO':
-                batch, ground_truth = generate_IO_batch(batch_size)
+                batch, ground_truth = generate_IO_batch(batch_size, path_type=args.path_type)
+                estimated_pose = model(batch)
             elif args.mode == 'VO':
-                batch = generate_VO_batch(batch_size)
+                batch, ground_truth = generate_VO_batch(batch_size)
+                estimated_pose = model(batch[:])
             elif args.mode == 'VIO':
-                batch = generate_VIO_batch(batch_size)
+                batch, ground_truth = generate_VIO_batch(batch_size)
             
-            estimated_pose = model(batch)
+            
             training_loss = model.loss(ground_truth, estimated_pose) # TODO: Read ground truth and import estimated pose
             print(training_loss)
             epoch_loss += training_loss
             optimizer.zero_grad()
             training_loss.backward()
             optimizer.step()
+                
         print(f"EPOCH LOSS: {epoch_loss}")
         print()
-            
-            # Save checkpoint every some SaveCheckPoint's iterations
-            # if per_epoch_counter % save_checkpoint == 0:
-            #     # Save the Model learnt in this epoch
-            #     SaveName = (
-            #         "Code/Phase2/checkpoints/"
-            #         + str(epoch)
-            #         + "a"
-            #         + str(per_epoch_counter)
-            #         + "model.ckpt"
-            #     )
-
-            #     torch.save(
-            #         {
-            #             "epoch": epoch,
-            #             "model_state_dict": model.state_dict(),
-            #             "optimizer_state_dict": optimizer.state_dict(),
-            #             "loss": trainging_loss,
-            #         },
-            #         SaveName,
-            #     )
-            #     print("\n" + SaveName + " Model Saved...")
-                
-        # with torch.no_grad():
-        #     if args.mode == 'IO':
-        #         batch, ground_truth = generate_IO_batch(batch_size, train=False)
-        #     elif args.mode == 'VO':
-        #         batch = generate_VO_batch(batch_size)
-        #     elif args.mode == 'VIO':
-        #         batch = generate_VIO_batch(batch_size)
-        #     val_pose = model(batch)
-        #     loss = model.loss(ground_truth, val_pose)
-        # print(f"Validation Loss: {loss}, Training Loss: {trainging_loss}")
         if epoch % save_rate == 0:
             SaveName = (
-                        "Code/Phase2/checkpoints/"
+                        "Code/Phase2/Checkpoints/"
                         + str(epoch)
                         + "a"
                         + str(per_epoch_counter)
@@ -211,5 +196,6 @@ if __name__ == '__main__':
     parser.add_argument('--epochs', type=int, default=50, help='Number of epochs to train')
     parser.add_argument('--gpus', type=int, default=1, help='Number of GPUs')
     parser.add_argument('--fp16', action='store_true', help='Enable FP16 training')
+    parser.add_argument('--path_type', type=str, default='Straight_Line', choices=['Straight_Line', 'Circle', 'Sinusoid'])
     args = parser.parse_args()
     main(args)

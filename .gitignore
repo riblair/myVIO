@@ -13,9 +13,6 @@ stamped_groundtruth.txt
 measured_data.txt
 Output.mp4
 data_creater.py
-<<<<<<< HEAD
-**.zip
-videos/**
-=======
-
->>>>>>> 297ebda (added testing for io model)
+.zip
+videos/
+Code/.DS_Store
