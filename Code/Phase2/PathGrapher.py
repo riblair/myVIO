@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from Path import Path
+from Path import Path, SINUSOID_TRAIN
 import utils as util
 
 class PathGrapher:
@@ -105,11 +105,11 @@ class PathGrapher:
 
 if __name__ == '__main__':
     path_list = []
-    path_list.append(PathGrapher(STRAIGHT_LINE))
-    path_list.append(PathGrapher(CIRCLE))
-    path_list.append(PathGrapher(SINUSOID))
-    path_list.append(PathGrapher(FIGURE_EIGHT))
-    path_list.append(PathGrapher(HYPERBOLIC_PARABOLOID))
+    # path_list.append(PathGrapher(STRAIGHT_LINE))
+    # path_list.append(PathGrapher(CIRCLE))
+    path_list.append(PathGrapher(SINUSOID_TRAIN))
+    # path_list.append(PathGrapher(FIGURE_EIGHT))
+    # path_list.append(PathGrapher(HYPERBOLIC_PARABOLOID))
     
     for pg in path_list:
         pg.generate_plots()

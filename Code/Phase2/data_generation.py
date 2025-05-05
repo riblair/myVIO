@@ -43,59 +43,59 @@ def env_setup():
     os.makedirs(final_out+"Val/Images/",    exist_ok=True)
     return Args
 
-def generate_random_path():
-    path_int = random.randint(1, 5)
-    match path_int:
-        case 1:  # Straight Line
-            point_min = 10
-            point_max = -10
-            path = StraightLine(
-                point_a=np.array([random.uniform(point_min, point_max), random.uniform(point_min, point_max), random.uniform(point_min, point_max)]),
-                point_b=np.array([random.uniform(point_min, point_max), random.uniform(point_min, point_max), random.uniform(point_min, point_max)])
-            )
-        case 2:  # Circle
-            center_min = 10
-            center_max = -10
-            diameter_min = -10
-            diameter_max = 10
-            path = Circle(
-                center=np.array([random.uniform(center_min, center_max), random.uniform(center_min, center_max), random.uniform(center_min, center_max)]),
-                diameter=random.uniform(diameter_min, diameter_max)
-            )
-        case 3:  # Sinusoid
-            point_min = 10
-            point_max = -10
-            param_max = 10
-            param_min = -10
-            path = Sinusoid(
-                point_a=np.array([random.uniform(point_min, point_max), random.uniform(point_min, point_max), random.uniform(point_min, point_max)]),
-                point_b=np.array([random.uniform(point_min, point_max), random.uniform(point_min, point_max), random.uniform(point_min, point_max)]),
-                x_params=(random.uniform(param_min, param_max), random.uniform(param_min, param_max), random.uniform(param_min, param_max)),
-                y_params=(random.uniform(param_min, param_max), random.uniform(param_min, param_max), random.uniform(param_min, param_max)),
-                z_params=(random.uniform(param_min, param_max), random.uniform(param_min, param_max), random.uniform(param_min, param_max)),
-            )
-        case 4:  # Figure Eight
-            x_min = 10
-            x_max = -10
-            axis_min = 10
-            axis_max = -10
-            path = FigureEight(
-                x_i=np.array([random.uniform(x_min, x_max), random.uniform(x_min, x_max), random.uniform(x_min, x_max)]),
-                major_axis=random.uniform(axis_min, axis_max),
-                minor_axis=random.uniform(axis_min, axis_max)
-            )
-        case 5:  # Hyperbolic Paraboloid
-            x_min = 10
-            x_max = -10
-            width_min = 10
-            width_max = -10
-            path = HyperbolicParaboloid(
-                x_i=np.array([random.uniform(x_min, x_max), random.uniform(x_min, x_max), random.uniform(x_min, x_max)]),
-                x_width=random.uniform(width_min, width_max),
-                y_width=random.uniform(width_min, width_max),
-                z_width=random.uniform(width_min, width_max)
-            )
-    return path
+# def generate_random_path():
+#     path_int = random.randint(1, 5)
+#     match path_int:
+#         case 1:  # Straight Line
+#             point_min = 10
+#             point_max = -10
+#             path = StraightLine(
+#                 point_a=np.array([random.uniform(point_min, point_max), random.uniform(point_min, point_max), random.uniform(point_min, point_max)]),
+#                 point_b=np.array([random.uniform(point_min, point_max), random.uniform(point_min, point_max), random.uniform(point_min, point_max)])
+#             )
+#         case 2:  # Circle
+#             center_min = 10
+#             center_max = -10
+#             diameter_min = -10
+#             diameter_max = 10
+#             path = Circle(
+#                 center=np.array([random.uniform(center_min, center_max), random.uniform(center_min, center_max), random.uniform(center_min, center_max)]),
+#                 diameter=random.uniform(diameter_min, diameter_max)
+#             )
+#         case 3:  # Sinusoid
+#             point_min = 10
+#             point_max = -10
+#             param_max = 10
+#             param_min = -10
+#             path = Sinusoid(
+#                 point_a=np.array([random.uniform(point_min, point_max), random.uniform(point_min, point_max), random.uniform(point_min, point_max)]),
+#                 point_b=np.array([random.uniform(point_min, point_max), random.uniform(point_min, point_max), random.uniform(point_min, point_max)]),
+#                 x_params=(random.uniform(param_min, param_max), random.uniform(param_min, param_max), random.uniform(param_min, param_max)),
+#                 y_params=(random.uniform(param_min, param_max), random.uniform(param_min, param_max), random.uniform(param_min, param_max)),
+#                 z_params=(random.uniform(param_min, param_max), random.uniform(param_min, param_max), random.uniform(param_min, param_max)),
+#             )
+#         case 4:  # Figure Eight
+#             x_min = 10
+#             x_max = -10
+#             axis_min = 10
+#             axis_max = -10
+#             path = FigureEight(
+#                 x_i=np.array([random.uniform(x_min, x_max), random.uniform(x_min, x_max), random.uniform(x_min, x_max)]),
+#                 major_axis=random.uniform(axis_min, axis_max),
+#                 minor_axis=random.uniform(axis_min, axis_max)
+#             )
+#         case 5:  # Hyperbolic Paraboloid
+#             x_min = 10
+#             x_max = -10
+#             width_min = 10
+#             width_max = -10
+#             path = HyperbolicParaboloid(
+#                 x_i=np.array([random.uniform(x_min, x_max), random.uniform(x_min, x_max), random.uniform(x_min, x_max)]),
+#                 x_width=random.uniform(width_min, width_max),
+#                 y_width=random.uniform(width_min, width_max),
+#                 z_width=random.uniform(width_min, width_max)
+#             )
+#     return path
     
 def generate_ground_truth(directory:str, times: np.ndarray, positions: np.ndarray, quaternions: np.ndarray):
     filepath = f'{directory}path.csv'
@@ -160,11 +160,11 @@ def generate_everything(args):
     euler_val = np.array([util.euler_from_quat(orientation) for orientation in quaternions_val])
     dir_val = args.Outputs+args.Path+"/Val/"
 
-    generate_data(dir_train, times, positions_train, euler_train)
-    generate_ground_truth(dir_train, times, positions_train, quaternions_train)
-    generate_image_data(dir_train, times, positions_train, euler_train)
-    hyperparam_filepath = f'{dir_train}metadata.yaml'
-    path_train.export_hyperparameters(hyperparam_filepath)
+    # generate_data(dir_train, times, positions_train, euler_train)
+    # generate_ground_truth(dir_train, times, positions_train, quaternions_train)
+    # generate_image_data(dir_train, times, positions_train, euler_train)
+    # hyperparam_filepath = f'{dir_train}metadata.yaml'
+    # path_train.export_hyperparameters(hyperparam_filepath)
 
     generate_data(dir_test, times, positions_test, euler_test)
     generate_ground_truth(dir_test, times, positions_test, quaternions_test)

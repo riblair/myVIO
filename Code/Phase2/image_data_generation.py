@@ -6,6 +6,7 @@ from PathGrapher import PathGrapher
 import argparse
 import numpy as np
 import os
+import sys
 
 def env_setup():
     Parser = argparse.ArgumentParser()
@@ -46,7 +47,11 @@ def setup_scene():
     links.new(bsdf.outputs['BSDF'], output.inputs['Surface'])
     plane.data.materials.append(mat)
     bpy.ops.object.light_add(type='SUN', location=(0, 0, 10))
-    bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+    # bpy.context.scene.render.engine = 'BLENDER_EEVEE'
+    print(bpy.context.scene.render.engine)
+    devnull = os.open(os.devnull, os.O_WRONLY)
+    os.dup2(devnull, 1)  # Redirect stdout (fd 1)
+    os.dup2(devnull, 2)
     return scene
 
 def render_scene(scene, file_path):
@@ -59,8 +64,12 @@ def generate_image_data(directory:str, times: np.ndarray, positions: np.ndarray,
     scene = setup_scene()
     im_names = [f"{directory}Images/im_{(i):05}.png" for i in range(len(times))]
     camera_obj = bpy.data.objects['Camera']
-    a = 0
+    # a = 1628
+    # iter = 0
     for (i_name, p, o) in zip(im_names, positions, euler_angles):
+        # if iter < a:
+        #     iter+=1
+        #     continue
         new_p = mathutils.Vector(p)
         new_o = mathutils.Euler(o)
         print(new_o)
@@ -68,9 +77,5 @@ def generate_image_data(directory:str, times: np.ndarray, positions: np.ndarray,
         camera_obj.rotation_euler = new_o
         bpy.context.view_layer.update()
         render_scene(scene, i_name)
-        a+=1
-        if a == 10:
-            break
-
     # combines images into a video
     os.system(f"ffmpeg -framerate 200 -y -pattern_type glob -i '{directory}Images/im_*.png' -c:v libx264 -pix_fmt yuv420p {directory}video.mp4")
