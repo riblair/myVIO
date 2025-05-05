@@ -98,7 +98,7 @@ def env_setup():
 #     return path
     
 def generate_ground_truth(directory:str, times: np.ndarray, positions: np.ndarray, quaternions: np.ndarray):
-    filepath = f'{directory}path.csv'
+    filepath = f'{directory}gt_data.csv'
     with open(filepath, 'w', newline='') as file:
         writer = csv.writer(file)
         data = np.vstack((positions[:, 0], positions[:, 1], positions[:, 2], quaternions[:, 0], quaternions[:, 1], quaternions[:, 2], quaternions[:, 3]))
@@ -106,7 +106,7 @@ def generate_ground_truth(directory:str, times: np.ndarray, positions: np.ndarra
 
 def generate_data(directory:str, times: np.ndarray, positions: np.ndarray, euler_angles: np.ndarray):
 
-    filepath = f'{directory}path.csv'
+    filepath = f'{directory}input_data.csv'
     with open(filepath, 'w', newline='') as file:
         writer = csv.writer(file)
         accel_data_gt = ImuUtils.cal_linear_acc(positions[:, 0], positions[:, 1], positions[:, 2], imu_rate=1.0/util.IMU_DT)
@@ -160,11 +160,11 @@ def generate_everything(args):
     euler_val = np.array([util.euler_from_quat(orientation) for orientation in quaternions_val])
     dir_val = args.Outputs+args.Path+"/Val/"
 
-    # generate_data(dir_train, times, positions_train, euler_train)
-    # generate_ground_truth(dir_train, times, positions_train, quaternions_train)
-    # generate_image_data(dir_train, times, positions_train, euler_train)
-    # hyperparam_filepath = f'{dir_train}metadata.yaml'
-    # path_train.export_hyperparameters(hyperparam_filepath)
+    generate_data(dir_train, times, positions_train, euler_train)
+    generate_ground_truth(dir_train, times, positions_train, quaternions_train)
+    generate_image_data(dir_train, times, positions_train, euler_train)
+    hyperparam_filepath = f'{dir_train}metadata.yaml'
+    path_train.export_hyperparameters(hyperparam_filepath)
 
     generate_data(dir_test, times, positions_test, euler_test)
     generate_ground_truth(dir_test, times, positions_test, quaternions_test)
