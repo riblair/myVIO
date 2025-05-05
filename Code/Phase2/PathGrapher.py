@@ -23,8 +23,14 @@ class PathGrapher:
 
                 # Parse values
                 x, y, z, qx, qy, qz, qw = map(float, parts)
+                quat = np.array([qx, qy, qz, qw])
+                norm = np.linalg.norm(quat)
+                quat_normalized = quat / norm
                 positions.append([x, y, z])
-                orientations.append([qx, qy, qz, qw])
+                orientations.append(quat_normalized)
+
+                # positions.append([x, y, z])
+                # orientations.append([qx, qy, qz, qw])
         times = np.linspace(0, self.ground_truth.t_f, num=(int(self.ground_truth.t_f/util.CAM_DT)-1))
         return times, np.array(positions), np.array(orientations)
 
@@ -98,7 +104,8 @@ class PathGrapher:
     def generate_orientation_plots(self, show_now: bool = False):
         times, gt_positions, orientations = self._generate_ground_truth('euler')
         if self.estim is not None: 
-            ___, est_positions, est_orientations = self._load_estimated_path()
+            est_time, est_positions, est_orientations = self._load_estimated_path()
+
         est_orientations = np.array([util.euler_from_quat(orientation) for orientation in est_orientations])
         
         fig, axs = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
@@ -106,7 +113,7 @@ class PathGrapher:
         
         for i in range(3):
             axs[i].plot(times, orientations[:, i], label=f'GT {labels[i]}')
-            axs[i].plot(times, est_orientations[:, i], label=f'Estim {labels[i]}')
+            axs[i].plot(est_time, est_orientations[:, i], label=f'Estim {labels[i]}')
             axs[i].set_ylabel(f'{labels[i]} (rad)')
             axs[i].legend()
             axs[i].grid(True)
@@ -119,8 +126,8 @@ class PathGrapher:
     def generate_plots(self):
         self.generate_xy_plot()
         self.generate_xz_plot()
-        self.generate_3d_plot(True)
-        # self.generate_orientation_plots(True)
+        self.generate_3d_plot()
+        self.generate_orientation_plots(True)
 
 
 if __name__ == '__main__':
